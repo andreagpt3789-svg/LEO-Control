@@ -6,10 +6,10 @@ ROOT = Path(__file__).resolve().parents[1]
 UP = ROOT / "upstream"
 ANDROID = UP / "android" / "app" / "src" / "main"
 
-src = ROOT / "overlay" / "android" / "app" / "src" / "main" / "java" / "com" / "metallic" / "chiaki" / "leo" / "LeoMainActivity.kt"
-dst = ANDROID / "java" / "com" / "metallic" / "chiaki" / "leo" / "LeoMainActivity.kt"
-dst.parent.mkdir(parents=True, exist_ok=True)
-shutil.copy2(src, dst)
+src_dir = ROOT / "overlay" / "android" / "app" / "src" / "main" / "java" / "com" / "metallic" / "chiaki" / "leo"
+dst_dir = ANDROID / "java" / "com" / "metallic" / "chiaki" / "leo"
+dst_dir.mkdir(parents=True, exist_ok=True)
+shutil.copytree(src_dir, dst_dir, dirs_exist_ok=True)
 
 manifest_path = ANDROID / "AndroidManifest.xml"
 ET.register_namespace("android", "http://schemas.android.com/apk/res/android")
@@ -37,6 +37,13 @@ action.set(android + "name", "android.intent.action.MAIN")
 category = ET.SubElement(intent, "category")
 category.set(android + "name", "android.intent.category.LAUNCHER")
 app.insert(0, leo)
+
+leo_register = ET.Element("activity")
+leo_register.set(android + "name", ".leo.LeoRegisterActivity")
+leo_register.set(android + "exported", "false")
+leo_register.set(android + "label", "Collega PS5")
+app.insert(1, leo_register)
+
 tree.write(manifest_path, encoding="utf-8", xml_declaration=True)
 
 stream_path = ANDROID / "java" / "com" / "metallic" / "chiaki" / "stream" / "StreamActivity.kt"
