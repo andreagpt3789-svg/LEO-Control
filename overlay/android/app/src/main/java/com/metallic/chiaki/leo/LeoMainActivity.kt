@@ -28,7 +28,6 @@ import com.metallic.chiaki.lib.ConnectInfo
 import com.metallic.chiaki.lib.ConnectVideoProfile
 import com.metallic.chiaki.lib.VideoFPSPreset
 import com.metallic.chiaki.lib.VideoResolutionPreset
-import com.metallic.chiaki.regist.RegistActivity
 import com.metallic.chiaki.stream.StreamActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -111,7 +110,7 @@ class LeoMainActivity : AppCompatActivity() {
             javaScriptEnabled = true
             domStorageEnabled = true
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-            userAgentString = userAgentString + " LEOControlAndroid/0.8.0"
+            userAgentString = userAgentString + " LEOControlAndroid/0.8.1"
         }
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean =
@@ -190,12 +189,11 @@ class LeoMainActivity : AppCompatActivity() {
                 registrationPending = true
                 Toast.makeText(
                     this@LeoMainActivity,
-                    "Prima registrazione PS5: inserisci Account-ID e PIN una sola volta.",
+                    "Prima registrazione: accedi con PlayStation e inserisci il PIN della PS5.",
                     Toast.LENGTH_LONG
                 ).show()
-                startActivity(Intent(this@LeoMainActivity, RegistActivity::class.java).apply {
-                    putExtra(RegistActivity.EXTRA_HOST, ip)
-                    putExtra(RegistActivity.EXTRA_BROADCAST, false)
+                startActivity(Intent(this@LeoMainActivity, LeoRegisterActivity::class.java).apply {
+                    putExtra(LeoRegisterActivity.EXTRA_HOST, ip)
                 })
             } else {
                 startController(registered, ip)
