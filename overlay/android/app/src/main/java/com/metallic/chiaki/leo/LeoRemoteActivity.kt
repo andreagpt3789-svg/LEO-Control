@@ -3,6 +3,7 @@ package com.metallic.chiaki.leo
 
 import android.app.AlertDialog
 import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
@@ -30,6 +31,16 @@ class LeoRemoteActivity : AppCompatActivity() {
         const val DEVICE_PC = "pc"
         const val DEVICE_TV = "tv_hisense"
         const val DEVICE_FIRE = "fire_tv"
+
+        private const val BG = 0xFF090B0FL
+        private const val SURFACE = 0xFF11151BL
+        private const val SURFACE_2 = 0xFF171C24L
+        private const val BORDER = 0xFF27303CL
+        private const val TEXT = 0xFFF4F7FAL
+        private const val MUTED = 0xFF8B96A5L
+        private const val ACCENT = 0xFF63D3E9L
+        private const val GREEN = 0xFF62D39AL
+        private const val RED = 0xFFFF7373L
     }
 
     private lateinit var hub: LeoHubClient
@@ -39,6 +50,8 @@ class LeoRemoteActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.statusBarColor = BG.toInt()
+        window.navigationBarColor = BG.toInt()
         hub = LeoHubClient(this)
         device = intent.getStringExtra(EXTRA_DEVICE) ?: DEVICE_PC
         buildUi()
@@ -53,41 +66,18 @@ class LeoRemoteActivity : AppCompatActivity() {
     private fun buildUi() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(11, 13, 16))
+            setBackgroundColor(BG.toInt())
         }
 
-        val top = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(10), dp(8), dp(10), dp(8))
-            setBackgroundColor(Color.rgb(18, 21, 27))
-        }
-        val back = button("←") { finish() }
-        val title = TextView(this).apply {
-            text = when (device) {
-                DEVICE_TV -> "Hisense TV"
-                DEVICE_FIRE -> "Fire TV"
-                else -> "PC Windows"
-            }
-            textSize = 21f
-            setTextColor(Color.WHITE)
-            setPadding(dp(12), 0, 0, 0)
-        }
-        status = TextView(this).apply {
-            text = "● pronto"
-            textSize = 12f
-            setTextColor(Color.LTGRAY)
-            gravity = Gravity.END or Gravity.CENTER_VERTICAL
-        }
-        top.addView(back, LinearLayout.LayoutParams(dp(54), dp(48)))
-        top.addView(title, LinearLayout.LayoutParams(0, dp(48), 1f))
-        top.addView(status, LinearLayout.LayoutParams(dp(110), dp(48)))
-        root.addView(top)
+        root.addView(topBar())
 
-        val scroll = ScrollView(this)
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            overScrollMode = View.OVER_SCROLL_NEVER
+        }
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(12), dp(12), dp(24))
+            setPadding(dp(16), dp(14), dp(16), dp(28))
         }
         scroll.addView(body)
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -100,7 +90,61 @@ class LeoRemoteActivity : AppCompatActivity() {
         setContentView(root)
     }
 
+    private fun topBar(): View {
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(8), dp(14), dp(8))
+            background = rounded(SURFACE.toInt(), 0f, Color.TRANSPARENT)
+        }
+
+        val back = TextView(this).apply {
+            text = "‹"
+            textSize = 34f
+            gravity = Gravity.CENTER
+            setTextColor(TEXT.toInt())
+            setOnClickListener { finish() }
+        }
+
+        val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        titles.addView(TextView(this).apply {
+            text = when (device) {
+                DEVICE_TV -> "Hisense"
+                DEVICE_FIRE -> "Fire TV"
+                else -> "PC Windows"
+            }
+            textSize = 20f
+            setTextColor(TEXT.toInt())
+            setTypeface(typeface, Typeface.BOLD)
+        })
+        titles.addView(TextView(this).apply {
+            text = when (device) {
+                DEVICE_TV -> "Telecomando locale"
+                DEVICE_FIRE -> "Telecomando locale"
+                else -> "Mouse, tastiera e media"
+            }
+            textSize = 10.5f
+            setTextColor(MUTED.toInt())
+        })
+
+        status = TextView(this).apply {
+            text = "● connessione…"
+            textSize = 10.5f
+            gravity = Gravity.CENTER
+            setTextColor(MUTED.toInt())
+            background = rounded(SURFACE_2.toInt(), dp(12).toFloat(), BORDER.toInt())
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+        }
+
+        wrap.addView(back, LinearLayout.LayoutParams(dp(44), dp(50)))
+        wrap.addView(titles, LinearLayout.LayoutParams(0, dp(50), 1f))
+        wrap.addView(status)
+        return wrap
+    }
+
     private fun buildPc(body: LinearLayout) {
+        body.addView(section("TOUCHPAD", "Scorri con due dita · tocca per click"))
+
         val pad = PadView(this) { dx, dy, tap, scroll ->
             ensureSocket("/ws/pc")
             when {
@@ -109,18 +153,22 @@ class LeoRemoteActivity : AppCompatActivity() {
                 dx != 0 || dy != 0 -> wsSend(JSONObject().put("type", "move").put("dx", dx).put("dy", dy))
             }
         }
-        body.addView(label("Touchpad"))
-        body.addView(pad, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(260)))
+        body.addView(pad, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(250)).apply {
+            setMargins(0, dp(6), 0, dp(10))
+        })
 
-        val clicks = row()
-        clicks.addView(button("Click SX") { pc("click", "button", "left") }, weight())
-        clicks.addView(button("Click DX") { pc("click", "button", "right") }, weight())
-        body.addView(clicks)
+        body.addView(twoButtons(
+            "Click sinistro" to { pc("click", "button", "left") },
+            "Click destro" to { pc("click", "button", "right") }
+        ))
 
+        body.addView(section("TASTIERA", "Scrivi direttamente sul PC"))
         val type = EditText(this).apply {
             hint = "Scrivi sul PC…"
-            setTextColor(Color.WHITE)
-            setHintTextColor(Color.GRAY)
+            setTextColor(TEXT.toInt())
+            setHintTextColor(MUTED.toInt())
+            background = rounded(SURFACE_2.toInt(), dp(16).toFloat(), BORDER.toInt())
+            setPadding(dp(16), 0, dp(16), 0)
             inputType = InputType.TYPE_CLASS_TEXT
             setSingleLine(true)
         }
@@ -132,49 +180,54 @@ class LeoRemoteActivity : AppCompatActivity() {
             }
             true
         }
-        body.addView(type)
+        body.addView(type, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(58)).apply {
+            setMargins(0, dp(6), 0, dp(10))
+        })
 
+        body.addView(section("COMANDI RAPIDI", "Le azioni che usi più spesso"))
         body.addView(commandRow(
             "Invio" to { pc("key", "key", "enter") },
             "Backspace" to { pc("key", "key", "backspace") },
             "Alt+Tab" to { pc("shortcut", "name", "alt_tab") }
         ))
         body.addView(commandRow(
-            "Vol -" to { pc("key", "key", "volume_down") },
-            "Play/Pausa" to { pc("key", "key", "media_play_pause") },
+            "Vol −" to { pc("key", "key", "volume_down") },
+            "Play / Pausa" to { pc("key", "key", "media_play_pause") },
             "Vol +" to { pc("key", "key", "volume_up") }
         ))
         body.addView(commandRow(
             "Copia" to { pc("shortcut", "name", "copy") },
             "Incolla" to { pc("shortcut", "name", "paste") },
-            "Blocca" to { wsSend(JSONObject().put("type", "action").put("name", "lock")) }
+            "Blocca PC" to { wsSend(JSONObject().put("type", "action").put("name", "lock")) }
         ))
         ensureSocket("/ws/pc")
     }
 
     private fun buildTv(body: LinearLayout) {
+        body.addView(section("CONTROLLO", "Navigazione e volume"))
         body.addView(commandRow(
             "Power" to { cmd("power") },
-            "Source" to { cmd("source") },
+            "Sorgente" to { cmd("source") },
             "Home" to { cmd("home") }
         ))
-        body.addView(dpad())
+        body.addView(remoteDpad())
         body.addView(commandRow(
-            "Back" to { cmd("back") },
+            "Indietro" to { cmd("back") },
             "Menu" to { cmd("menu") },
-            "Exit" to { cmd("exit") }
+            "Esci" to { cmd("exit") }
         ))
         body.addView(commandRow(
-            "Vol -" to { cmd("volume_down") },
+            "Vol −" to { cmd("volume_down") },
             "Mute" to { cmd("mute") },
             "Vol +" to { cmd("volume_up") }
         ))
         body.addView(commandRow(
-            "CH -" to { cmd("channel_down") },
-            "Play/Pausa" to { cmd("play") },
+            "CH −" to { cmd("channel_down") },
+            "Play / Pausa" to { cmd("play") },
             "CH +" to { cmd("channel_up") }
         ))
-        body.addView(label("App"))
+
+        body.addView(section("APP E INGRESSI", "Accesso diretto"))
         body.addView(commandRow(
             "Netflix" to { cmd("app_netflix") },
             "YouTube" to { cmd("app_youtube") },
@@ -189,30 +242,34 @@ class LeoRemoteActivity : AppCompatActivity() {
     }
 
     private fun buildFire(body: LinearLayout) {
+        body.addView(section("CONTROLLO", "Navigazione Fire TV"))
         body.addView(commandRow(
             "Power" to { cmd("power") },
             "Home" to { cmd("home") },
             "Menu" to { cmd("menu") }
         ))
-        body.addView(dpad())
+        body.addView(remoteDpad())
         body.addView(commandRow(
-            "Back" to { cmd("back") },
-            "Play/Pausa" to { cmd("play_pause") },
-            "Search" to { cmd("search") }
+            "Indietro" to { cmd("back") },
+            "Play / Pausa" to { cmd("play_pause") },
+            "Cerca" to { cmd("search") }
         ))
         body.addView(commandRow(
-            "Vol -" to { cmd("volume_down") },
+            "Vol −" to { cmd("volume_down") },
             "Mute" to { cmd("mute") },
             "Vol +" to { cmd("volume_up") }
         ))
 
+        body.addView(section("TESTO", "Digita dal telefono"))
         val text = EditText(this).apply {
             hint = "Scrivi su Fire TV…"
-            setTextColor(Color.WHITE)
-            setHintTextColor(Color.GRAY)
+            setTextColor(TEXT.toInt())
+            setHintTextColor(MUTED.toInt())
+            background = rounded(SURFACE_2.toInt(), dp(16).toFloat(), BORDER.toInt())
+            setPadding(dp(16), 0, dp(16), 0)
             setSingleLine(true)
         }
-        val send = button("Invia testo") {
+        val send = actionButton("Invia testo") {
             val value = text.text.toString()
             if (value.isNotBlank()) {
                 hub.text(device, value) { ok, msg, code ->
@@ -223,37 +280,51 @@ class LeoRemoteActivity : AppCompatActivity() {
                 }
             }
         }
-        body.addView(text)
-        body.addView(send)
+        body.addView(text, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(58)).apply {
+            setMargins(0, dp(6), 0, dp(8))
+        })
+        body.addView(send, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)))
         addDevicePad(body)
     }
 
-    private fun dpad(): View {
-        val wrap = FrameLayout(this)
-        val s = dp(72)
-        val c = resources.displayMetrics.widthPixels / 2 - s / 2 - dp(12)
-        fun add(label: String, command: String, x: Int, y: Int) {
-            wrap.addView(button(label) { cmd(command) }, FrameLayout.LayoutParams(s, s).apply {
-                leftMargin = x
-                topMargin = y
-            })
+    private fun remoteDpad(): View {
+        val wrap = FrameLayout(this).apply {
+            background = rounded(SURFACE.toInt(), dp(24).toFloat(), BORDER.toInt())
         }
-        add("▲", "up", c, 0)
-        add("◀", "left", c - s, s)
-        add("OK", "ok", c, s)
-        add("▶", "right", c + s, s)
-        add("▼", "down", c, s * 2)
-        wrap.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, s * 3)
+        val s = dp(68)
+        val c = resources.displayMetrics.widthPixels / 2 - s / 2 - dp(16)
+
+        fun add(label: String, command: String, x: Int, y: Int, primary: Boolean = false) {
+            wrap.addView(
+                if (primary) primaryButton(label) { cmd(command) } else actionButton(label) { cmd(command) },
+                FrameLayout.LayoutParams(s, s).apply {
+                    leftMargin = x
+                    topMargin = y
+                }
+            )
+        }
+
+        add("▲", "up", c, dp(10))
+        add("◀", "left", c - s, s + dp(10))
+        add("OK", "ok", c, s + dp(10), true)
+        add("▶", "right", c + s, s + dp(10))
+        add("▼", "down", c, s * 2 + dp(10))
+
+        wrap.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, s * 3 + dp(20)).apply {
+            setMargins(0, dp(8), 0, dp(8))
+        }
         return wrap
     }
 
     private fun addDevicePad(body: LinearLayout) {
-        body.addView(label("Touchpad"))
+        body.addView(section("TOUCHPAD", "Puntatore e scorrimento"))
         val pad = PadView(this) { dx, dy, tap, scroll ->
             ensureSocket("/ws/device/$device/pointer")
             wsSend(JSONObject().put("dx", dx).put("dy", dy).put("tap", tap).put("scroll", scroll))
         }
-        body.addView(pad, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(210)))
+        body.addView(pad, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(200)).apply {
+            setMargins(0, dp(6), 0, 0)
+        })
     }
 
     private fun cmd(command: String) {
@@ -274,16 +345,21 @@ class LeoRemoteActivity : AppCompatActivity() {
         if (socket != null) return
         socket = hub.webSocket(path, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                runOnUiThread { status.text = "● connesso"; status.setTextColor(Color.rgb(90, 230, 150)) }
+                runOnUiThread {
+                    status.text = "● connesso"
+                    status.setTextColor(GREEN.toInt())
+                }
             }
+
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 runOnUiThread {
-                    status.text = "● disconnesso"
-                    status.setTextColor(Color.LTGRAY)
+                    status.text = "● offline"
+                    status.setTextColor(MUTED.toInt())
                     if (code == 4401) showPairDialog()
                 }
                 socket = null
             }
+
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 runOnUiThread { updateStatus(false, t.message ?: "Errore rete") }
                 socket = null
@@ -301,8 +377,8 @@ class LeoRemoteActivity : AppCompatActivity() {
             inputType = InputType.TYPE_CLASS_NUMBER
         }
         AlertDialog.Builder(this)
-            .setTitle("Associa telefono al LEO Hub")
-            .setMessage("Inserisci il codice mostrato nella finestra LEO Control sul PC.")
+            .setTitle("Associa LEO Agent")
+            .setMessage("Inserisci il codice mostrato da LEO Agent sul PC.")
             .setView(input)
             .setPositiveButton("Associa") { _, _ ->
                 hub.pair(input.text.toString().trim()) { ok, msg ->
@@ -321,43 +397,92 @@ class LeoRemoteActivity : AppCompatActivity() {
     }
 
     private fun updateStatus(ok: Boolean, msg: String) {
-        status.text = if (ok) "● ok" else "● errore"
-        status.setTextColor(if (ok) Color.rgb(90, 230, 150) else Color.rgb(255, 110, 110))
+        status.text = if (ok) "● pronto" else "● errore"
+        status.setTextColor(if (ok) GREEN.toInt() else RED.toInt())
         if (!ok && msg.isNotBlank()) Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun section(title: String, subtitle: String): View {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(2), dp(14), dp(2), dp(6))
+            addView(TextView(this@LeoRemoteActivity).apply {
+                text = title
+                textSize = 11f
+                letterSpacing = 0.13f
+                setTextColor(TEXT.toInt())
+                setTypeface(typeface, Typeface.BOLD)
+            })
+            addView(TextView(this@LeoRemoteActivity).apply {
+                text = subtitle
+                textSize = 10.5f
+                setTextColor(MUTED.toInt())
+                setPadding(0, dp(2), 0, 0)
+            })
+        }
+    }
+
+    private fun twoButtons(
+        left: Pair<String, () -> Unit>,
+        right: Pair<String, () -> Unit>
+    ): LinearLayout {
+        val row = row()
+        row.addView(actionButton(left.first, left.second), weight())
+        row.addView(actionButton(right.first, right.second), weight())
+        return row
     }
 
     private fun commandRow(vararg items: Pair<String, () -> Unit>): LinearLayout {
         val r = row()
-        items.forEach { (label, action) -> r.addView(button(label, action), weight()) }
+        items.forEach { (label, action) -> r.addView(actionButton(label, action), weight()) }
         return r
     }
 
-    private fun row(): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        setPadding(0, dp(5), 0, dp(5))
-    }
+    private fun row(): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(4), 0, dp(4))
+        }
 
-    private fun weight() = LinearLayout.LayoutParams(0, dp(58), 1f).apply {
-        setMargins(dp(4), 0, dp(4), 0)
-    }
+    private fun weight() =
+        LinearLayout.LayoutParams(0, dp(56), 1f).apply {
+            setMargins(dp(4), 0, dp(4), 0)
+        }
 
-    private fun label(textValue: String) = TextView(this).apply {
-        text = textValue
-        textSize = 14f
-        setTextColor(Color.LTGRAY)
-        setPadding(dp(4), dp(12), dp(4), dp(6))
-    }
-
-    private fun button(textValue: String, action: () -> Unit): Button =
-        Button(this).apply {
+    private fun actionButton(textValue: String, action: () -> Unit): TextView =
+        TextView(this).apply {
             text = textValue
-            textSize = 14f
-            setTextColor(Color.WHITE)
-            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(42, 48, 59))
+            gravity = Gravity.CENTER
+            textSize = 12.5f
+            setTextColor(TEXT.toInt())
+            background = rounded(SURFACE_2.toInt(), dp(16).toFloat(), BORDER.toInt())
+            isClickable = true
+            isFocusable = true
             setOnClickListener { action() }
         }
 
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+    private fun primaryButton(textValue: String, action: () -> Unit): TextView =
+        TextView(this).apply {
+            text = textValue
+            gravity = Gravity.CENTER
+            textSize = 13f
+            setTextColor(Color.rgb(7, 24, 30))
+            setTypeface(typeface, Typeface.BOLD)
+            background = rounded(ACCENT.toInt(), dp(18).toFloat(), Color.TRANSPARENT)
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { action() }
+        }
+
+    private fun rounded(color: Int, radius: Float, stroke: Int): GradientDrawable =
+        GradientDrawable().apply {
+            cornerRadius = radius
+            setColor(color)
+            if (stroke != Color.TRANSPARENT) setStroke(dp(1), stroke)
+        }
+
+    private fun dp(v: Int) =
+        (v * resources.displayMetrics.density).toInt()
 
     private class PadView(
         context: android.content.Context,
@@ -372,26 +497,42 @@ class LeoRemoteActivity : AppCompatActivity() {
         init {
             background = GradientDrawable().apply {
                 cornerRadius = context.resources.displayMetrics.density * 22f
-                setColor(Color.rgb(28, 32, 40))
-                setStroke((context.resources.displayMetrics.density).toInt(), Color.rgb(66, 74, 90))
+                setColor(Color.rgb(17, 21, 27))
+                setStroke(
+                    context.resources.displayMetrics.density.toInt(),
+                    Color.rgb(39, 48, 60)
+                )
             }
         }
 
         override fun onTouchEvent(e: MotionEvent): Boolean {
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    lastX = e.x; lastY = e.y; downX = e.x; downY = e.y; downAt = System.currentTimeMillis()
+                    lastX = e.x
+                    lastY = e.y
+                    downX = e.x
+                    downY = e.y
+                    downAt = System.currentTimeMillis()
                 }
+
                 MotionEvent.ACTION_MOVE -> {
                     val dx = ((e.x - lastX) * 1.35f).toInt().coerceIn(-320, 320)
                     val dy = ((e.y - lastY) * 1.35f).toInt().coerceIn(-320, 320)
-                    lastX = e.x; lastY = e.y
-                    if (e.pointerCount >= 2) callback(0, 0, false, (-dy / 3).coerceIn(-12, 12))
-                    else if (dx != 0 || dy != 0) callback(dx, dy, false, 0)
+                    lastX = e.x
+                    lastY = e.y
+
+                    if (e.pointerCount >= 2) {
+                        callback(0, 0, false, (-dy / 3).coerceIn(-12, 12))
+                    } else if (dx != 0 || dy != 0) {
+                        callback(dx, dy, false, 0)
+                    }
                 }
+
                 MotionEvent.ACTION_UP -> {
                     val moved = abs(e.x - downX) + abs(e.y - downY)
-                    if (moved < 18f && System.currentTimeMillis() - downAt < 300) callback(0, 0, true, 0)
+                    if (moved < 18f && System.currentTimeMillis() - downAt < 300) {
+                        callback(0, 0, true, 0)
+                    }
                 }
             }
             return true
