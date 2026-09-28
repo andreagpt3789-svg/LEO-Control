@@ -167,17 +167,25 @@ class LeoFireClient(private val context: Context) {
     }
 
     private fun localSubnetBase(): String? {
+        val tvIp = prefs.getString("tv_ip", "").orEmpty().trim()
+        val tvParts = tvIp.split(".")
+        if (tvParts.size == 4 && tvParts.all { it.toIntOrNull() in 0..255 }) {
+            return tvParts.take(3).joinToString(".")
+        }
+
+        val candidates = mutableListOf<String>()
         val interfaces = Collections.list(NetworkInterface.getNetworkInterfaces())
         for (iface in interfaces) {
             if (!iface.isUp || iface.isLoopback) continue
             for (address in Collections.list(iface.inetAddresses)) {
                 if (address is Inet4Address && address.isSiteLocalAddress) {
                     val parts = address.hostAddress?.split(".") ?: continue
-                    if (parts.size == 4) return parts.take(3).joinToString(".")
+                    if (parts.size == 4) candidates += parts.take(3).joinToString(".")
                 }
             }
         }
-        return null
+        return candidates.firstOrNull { it.startsWith("192.168.") }
+            ?: candidates.firstOrNull()
     }
 
     private fun portOpen(ip: String, port: Int, timeoutMs: Int): Boolean {
