@@ -28,7 +28,6 @@ import com.metallic.chiaki.lib.ConnectInfo
 import com.metallic.chiaki.lib.ConnectVideoProfile
 import com.metallic.chiaki.lib.VideoFPSPreset
 import com.metallic.chiaki.lib.VideoResolutionPreset
-import com.metallic.chiaki.stream.StreamActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -238,9 +237,8 @@ class LeoMainActivity : AppCompatActivity() {
             host.rpKey,
             profile
         )
-        startActivity(Intent(this, StreamActivity::class.java).apply {
-            putExtra(StreamActivity.EXTRA_CONNECT_INFO, connectInfo)
-            putExtra(StreamActivity.EXTRA_CONTROLLER_ONLY, true)
+        startActivity(Intent(this, LeoPs5ControllerActivity::class.java).apply {
+            putExtra(LeoPs5ControllerActivity.EXTRA_CONNECT_INFO, connectInfo)
         })
     }
 
