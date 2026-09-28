@@ -11,7 +11,6 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -40,6 +39,7 @@ class LeoRemoteActivity : AppCompatActivity() {
         private const val MUTED = 0xFF8B96A5L
         private const val ACCENT = 0xFF63D3E9L
         private const val GREEN = 0xFF62D39AL
+        private const val ORANGE = 0xFFF2A65AL
         private const val RED = 0xFFFF7373L
     }
 
@@ -47,6 +47,10 @@ class LeoRemoteActivity : AppCompatActivity() {
     private lateinit var device: String
     private lateinit var status: TextView
     private var socket: WebSocket? = null
+    private var vidaa: LeoVidaaClient? = null
+    private var fire: LeoFireClient? = null
+    private var fireConnecting = false
+    private var vidaaPairDialogVisible = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,12 +58,29 @@ class LeoRemoteActivity : AppCompatActivity() {
         window.navigationBarColor = BG.toInt()
         hub = LeoHubClient(this)
         device = intent.getStringExtra(EXTRA_DEVICE) ?: DEVICE_PC
+        if (device == DEVICE_TV) vidaa = LeoVidaaClient(this)
+        if (device == DEVICE_FIRE) fire = LeoFireClient(this)
         buildUi()
+
+        when (device) {
+            DEVICE_PC -> ensureSocket("/ws/pc")
+            DEVICE_TV -> {
+                if (vidaa?.isPaired() == true) {
+                    setStatus("● diretto", GREEN.toInt())
+                } else {
+                    setStatus("● da associare", ORANGE.toInt())
+                    showVidaaPairingIntro()
+                }
+            }
+            DEVICE_FIRE -> ensureFireConnected()
+        }
     }
 
     override fun onDestroy() {
         socket?.close(1000, "close")
         socket = null
+        vidaa?.disconnect()
+        fire?.close()
         super.onDestroy()
     }
 
@@ -68,7 +89,6 @@ class LeoRemoteActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(BG.toInt())
         }
-
         root.addView(topBar())
 
         val scroll = ScrollView(this).apply {
@@ -119,9 +139,9 @@ class LeoRemoteActivity : AppCompatActivity() {
         })
         titles.addView(TextView(this).apply {
             text = when (device) {
-                DEVICE_TV -> "Telecomando locale"
-                DEVICE_FIRE -> "Telecomando locale"
-                else -> "Mouse, tastiera e media"
+                DEVICE_TV -> "Telefono → TV · VIDAA locale"
+                DEVICE_FIRE -> "Telefono → Fire TV · ADB locale"
+                else -> "Mouse, tastiera e media · LEO Agent"
             }
             textSize = 10.5f
             setTextColor(MUTED.toInt())
@@ -145,7 +165,7 @@ class LeoRemoteActivity : AppCompatActivity() {
     private fun buildPc(body: LinearLayout) {
         body.addView(section("TOUCHPAD", "Scorri con due dita · tocca per click"))
 
-        val pad = PadView(this) { dx, dy, tap, scroll ->
+        val pad = PcPadView(this) { dx, dy, tap, scroll ->
             ensureSocket("/ws/pc")
             when {
                 tap -> wsSend(JSONObject().put("type", "click").put("button", "left"))
@@ -200,10 +220,14 @@ class LeoRemoteActivity : AppCompatActivity() {
             "Incolla" to { pc("shortcut", "name", "paste") },
             "Blocca PC" to { wsSend(JSONObject().put("type", "action").put("name", "lock")) }
         ))
-        ensureSocket("/ws/pc")
     }
 
     private fun buildTv(body: LinearLayout) {
+        body.addView(infoCard(
+            "CONTROLLO DIRETTO",
+            "La TV comunica direttamente con questo telefono sulla rete locale. Il PC non partecipa."
+        ))
+
         body.addView(section("CONTROLLO", "Navigazione e volume"))
         body.addView(commandRow(
             "Power" to { cmd("power") },
@@ -223,7 +247,7 @@ class LeoRemoteActivity : AppCompatActivity() {
         ))
         body.addView(commandRow(
             "CH −" to { cmd("channel_down") },
-            "Play / Pausa" to { cmd("play") },
+            "Play" to { cmd("play") },
             "CH +" to { cmd("channel_up") }
         ))
 
@@ -238,10 +262,15 @@ class LeoRemoteActivity : AppCompatActivity() {
             "TV" to { cmd("source_tv") },
             "HDMI 1" to { cmd("source_hdmi1") }
         ))
-        addDevicePad(body)
+        addGesturePad(body)
     }
 
     private fun buildFire(body: LinearLayout) {
+        body.addView(infoCard(
+            "CONTROLLO DIRETTO",
+            "LEO cerca la Fire TV sulla rete e usa ADB direttamente dal telefono. La prima volta la TV può chiedere di autorizzare questo telefono."
+        ))
+
         body.addView(section("CONTROLLO", "Navigazione Fire TV"))
         body.addView(commandRow(
             "Power" to { cmd("power") },
@@ -271,20 +300,35 @@ class LeoRemoteActivity : AppCompatActivity() {
         }
         val send = actionButton("Invia testo") {
             val value = text.text.toString()
-            if (value.isNotBlank()) {
-                hub.text(device, value) { ok, msg, code ->
-                    runOnUiThread {
-                        updateStatus(ok, msg)
-                        if (code == 401) showPairDialog()
-                    }
-                }
-            }
+            if (value.isNotBlank()) sendFireText(value)
         }
         body.addView(text, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(58)).apply {
             setMargins(0, dp(6), 0, dp(8))
         })
         body.addView(send, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)))
-        addDevicePad(body)
+        addGesturePad(body)
+    }
+
+    private fun infoCard(title: String, text: String): View {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = rounded(SURFACE.toInt(), dp(18).toFloat(), BORDER.toInt())
+            addView(TextView(this@LeoRemoteActivity).apply {
+                this.text = title
+                textSize = 10.5f
+                letterSpacing = 0.12f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(ACCENT.toInt())
+            })
+            addView(TextView(this@LeoRemoteActivity).apply {
+                this.text = text
+                textSize = 11f
+                setLineSpacing(0f, 1.08f)
+                setTextColor(MUTED.toInt())
+                setPadding(0, dp(4), 0, 0)
+            })
+        }
     }
 
     private fun remoteDpad(): View {
@@ -316,24 +360,230 @@ class LeoRemoteActivity : AppCompatActivity() {
         return wrap
     }
 
-    private fun addDevicePad(body: LinearLayout) {
-        body.addView(section("TOUCHPAD", "Puntatore e scorrimento"))
-        val pad = PadView(this) { dx, dy, tap, scroll ->
-            ensureSocket("/ws/device/$device/pointer")
-            wsSend(JSONObject().put("dx", dx).put("dy", dy).put("tap", tap).put("scroll", scroll))
-        }
-        body.addView(pad, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(200)).apply {
+    private fun addGesturePad(body: LinearLayout) {
+        body.addView(section("GESTI", "Tocca = OK · scorri = direzione"))
+        val pad = GesturePadView(this) { command -> cmd(command) }
+        body.addView(pad, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(160)).apply {
             setMargins(0, dp(6), 0, 0)
         })
     }
 
     private fun cmd(command: String) {
-        hub.command(device, command) { ok, msg, code ->
-            runOnUiThread {
-                updateStatus(ok, msg)
-                if (code == 401) showPairDialog()
+        when (device) {
+            DEVICE_TV -> sendVidaaCommand(command)
+            DEVICE_FIRE -> sendFireCommand(command)
+            else -> {
+                hub.command(device, command) { ok, msg, code ->
+                    runOnUiThread {
+                        updateStatus(ok, msg)
+                        if (code == 401) showPairDialog()
+                    }
+                }
             }
         }
+    }
+
+    private fun sendVidaaCommand(command: String) {
+        val tv = vidaa ?: return
+        if (!tv.isPaired()) {
+            showVidaaPairingIntro()
+            return
+        }
+        setStatus("● invio…", MUTED.toInt())
+        Thread {
+            val result = when (command) {
+                "power" -> tv.sendKey("KEY_POWER")
+                "source" -> tv.sendKey("KEY_SOURCE")
+                "home" -> tv.sendKey("KEY_HOME")
+                "back" -> tv.sendKey("KEY_RETURNS")
+                "menu" -> tv.sendKey("KEY_MENU")
+                "exit" -> tv.sendKey("KEY_EXIT")
+                "up" -> tv.sendKey("KEY_UP")
+                "down" -> tv.sendKey("KEY_DOWN")
+                "left" -> tv.sendKey("KEY_LEFT")
+                "right" -> tv.sendKey("KEY_RIGHT")
+                "ok" -> tv.sendKey("KEY_OK")
+                "volume_down" -> tv.sendKey("KEY_VOLUMEDOWN")
+                "volume_up" -> tv.sendKey("KEY_VOLUMEUP")
+                "mute" -> tv.sendKey("KEY_MUTE")
+                "channel_down" -> tv.sendKey("KEY_CHANNELDOWN")
+                "channel_up" -> tv.sendKey("KEY_CHANNELUP")
+                "play" -> tv.sendKey("KEY_PLAY")
+                "source_tv" -> tv.setSource("0")
+                "source_hdmi1" -> tv.setSource("3")
+                "app_netflix" -> tv.launchApp("netflix")
+                "app_youtube" -> tv.launchApp("youtube")
+                "app_prime" -> tv.launchApp("prime")
+                "app_disney" -> tv.launchApp("disney")
+                else -> Result.failure(IllegalArgumentException("Comando VIDAA non supportato"))
+            }
+            runOnUiThread {
+                if (result.isSuccess) {
+                    setStatus("● diretto", GREEN.toInt())
+                } else {
+                    setStatus("● errore", RED.toInt())
+                    Toast.makeText(
+                        this,
+                        result.exceptionOrNull()?.message ?: "Comando TV non riuscito",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun sendFireCommand(command: String) {
+        val key = when (command) {
+            "power" -> 26
+            "home" -> 3
+            "menu" -> 82
+            "back" -> 4
+            "up" -> 19
+            "down" -> 20
+            "left" -> 21
+            "right" -> 22
+            "ok" -> 23
+            "play_pause" -> 85
+            "search" -> 84
+            "volume_down" -> 25
+            "volume_up" -> 24
+            "mute" -> 164
+            else -> null
+        }
+        if (key == null) return
+        ensureFireConnected {
+            Thread {
+                val result = fire?.sendKey(key) ?: Result.failure(IllegalStateException("Fire TV non disponibile"))
+                runOnUiThread {
+                    if (result.isSuccess) {
+                        setStatus("● diretto", GREEN.toInt())
+                    } else {
+                        setStatus("● errore", RED.toInt())
+                        Toast.makeText(
+                            this,
+                            result.exceptionOrNull()?.message ?: "Comando Fire TV non riuscito",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }.start()
+        }
+    }
+
+    private fun sendFireText(value: String) {
+        ensureFireConnected {
+            Thread {
+                val result = fire?.sendText(value) ?: Result.failure(IllegalStateException("Fire TV non disponibile"))
+                runOnUiThread {
+                    if (result.isSuccess) {
+                        setStatus("● diretto", GREEN.toInt())
+                    } else {
+                        setStatus("● errore", RED.toInt())
+                        Toast.makeText(
+                            this,
+                            result.exceptionOrNull()?.message ?: "Invio testo non riuscito",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }.start()
+        }
+    }
+
+    private fun ensureFireConnected(after: (() -> Unit)? = null) {
+        if (fireConnecting) return
+        fireConnecting = true
+        setStatus("● cerco Fire TV…", MUTED.toInt())
+        Thread {
+            val result = fire?.connectOrDiscover() ?: Result.failure(IllegalStateException("Fire TV non disponibile"))
+            runOnUiThread {
+                fireConnecting = false
+                if (result.isSuccess) {
+                    setStatus("● diretto", GREEN.toInt())
+                    after?.invoke()
+                } else {
+                    setStatus("● autorizza", ORANGE.toInt())
+                    AlertDialog.Builder(this)
+                        .setTitle("Collega Fire TV")
+                        .setMessage(
+                            result.exceptionOrNull()?.message
+                                ?: "Attiva Debug ADB sulla Fire TV e autorizza questo telefono."
+                        )
+                        .setPositiveButton("Riprova") { _, _ -> ensureFireConnected(after) }
+                        .setNegativeButton("Chiudi", null)
+                        .show()
+                }
+            }
+        }.start()
+    }
+
+    private fun showVidaaPairingIntro() {
+        if (vidaaPairDialogVisible || isFinishing) return
+        vidaaPairDialogVisible = true
+        AlertDialog.Builder(this)
+            .setTitle("Collega Hisense direttamente")
+            .setMessage(
+                "LEO si collega alla TV sulla rete locale. La prima volta la TV mostrerà un PIN. " +
+                    "Su alcuni modelli moderni serve che l'app ufficiale VIDAA Smart TV sia installata sul telefono: " +
+                    "LEO legge localmente il certificato già presente nell'app e lo salva nella propria area privata."
+            )
+            .setPositiveButton("Avvia pairing") { _, _ ->
+                vidaaPairDialogVisible = false
+                startVidaaPairing()
+            }
+            .setNegativeButton("Più tardi") { _, _ ->
+                vidaaPairDialogVisible = false
+            }
+            .setOnCancelListener { vidaaPairDialogVisible = false }
+            .show()
+    }
+
+    private fun startVidaaPairing() {
+        setStatus("● pairing…", MUTED.toInt())
+        vidaa?.startPairing { result ->
+            runOnUiThread {
+                if (!result.ok) {
+                    setStatus("● non associata", RED.toInt())
+                    AlertDialog.Builder(this)
+                        .setTitle("Pairing Hisense")
+                        .setMessage(result.message)
+                        .setPositiveButton("Riprova") { _, _ -> startVidaaPairing() }
+                        .setNegativeButton("Chiudi", null)
+                        .show()
+                } else if (result.message.contains("PIN", ignoreCase = true)) {
+                    showVidaaPinDialog()
+                } else if (result.message.contains("associata", ignoreCase = true)) {
+                    setStatus("● diretto", GREEN.toInt())
+                    Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun showVidaaPinDialog() {
+        val input = EditText(this).apply {
+            hint = "PIN mostrato sulla TV"
+            inputType = InputType.TYPE_CLASS_NUMBER
+        }
+        AlertDialog.Builder(this)
+            .setTitle("PIN Hisense")
+            .setMessage("Inserisci il PIN mostrato sul televisore.")
+            .setView(input)
+            .setPositiveButton("Associa") { _, _ ->
+                vidaa?.submitPin(input.text.toString()) { result ->
+                    runOnUiThread {
+                        if (result.ok) {
+                            setStatus("● attendo TV…", MUTED.toInt())
+                            Toast.makeText(this, result.message, Toast.LENGTH_SHORT).show()
+                        } else {
+                            setStatus("● errore PIN", RED.toInt())
+                            Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("Annulla", null)
+            .show()
     }
 
     private fun pc(type: String, key: String, value: String) {
@@ -342,19 +592,15 @@ class LeoRemoteActivity : AppCompatActivity() {
     }
 
     private fun ensureSocket(path: String) {
-        if (socket != null) return
+        if (device != DEVICE_PC || socket != null) return
         socket = hub.webSocket(path, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                runOnUiThread {
-                    status.text = "● connesso"
-                    status.setTextColor(GREEN.toInt())
-                }
+                runOnUiThread { setStatus("● agent", GREEN.toInt()) }
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 runOnUiThread {
-                    status.text = "● offline"
-                    status.setTextColor(MUTED.toInt())
+                    setStatus("● offline", MUTED.toInt())
                     if (code == 4401) showPairDialog()
                 }
                 socket = null
@@ -372,6 +618,7 @@ class LeoRemoteActivity : AppCompatActivity() {
     }
 
     private fun showPairDialog() {
+        if (device != DEVICE_PC) return
         val input = EditText(this).apply {
             hint = "Codice a 6 cifre"
             inputType = InputType.TYPE_CLASS_NUMBER
@@ -387,7 +634,7 @@ class LeoRemoteActivity : AppCompatActivity() {
                         if (ok) {
                             socket?.close(1000, "reconnect")
                             socket = null
-                            if (device == DEVICE_PC) ensureSocket("/ws/pc")
+                            ensureSocket("/ws/pc")
                         }
                     }
                 }
@@ -397,9 +644,14 @@ class LeoRemoteActivity : AppCompatActivity() {
     }
 
     private fun updateStatus(ok: Boolean, msg: String) {
-        status.text = if (ok) "● pronto" else "● errore"
-        status.setTextColor(if (ok) GREEN.toInt() else RED.toInt())
+        setStatus(if (ok) "● pronto" else "● errore", if (ok) GREEN.toInt() else RED.toInt())
         if (!ok && msg.isNotBlank()) Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun setStatus(value: String, color: Int) {
+        if (!::status.isInitialized) return
+        status.text = value
+        status.setTextColor(color)
     }
 
     private fun section(title: String, subtitle: String): View {
@@ -484,7 +736,7 @@ class LeoRemoteActivity : AppCompatActivity() {
     private fun dp(v: Int) =
         (v * resources.displayMetrics.density).toInt()
 
-    private class PadView(
+    private class PcPadView(
         context: android.content.Context,
         val callback: (Int, Int, Boolean, Int) -> Unit
     ) : View(context) {
@@ -498,10 +750,7 @@ class LeoRemoteActivity : AppCompatActivity() {
             background = GradientDrawable().apply {
                 cornerRadius = context.resources.displayMetrics.density * 22f
                 setColor(Color.rgb(17, 21, 27))
-                setStroke(
-                    context.resources.displayMetrics.density.toInt(),
-                    Color.rgb(39, 48, 60)
-                )
+                setStroke(context.resources.displayMetrics.density.toInt(), Color.rgb(39, 48, 60))
             }
         }
 
@@ -514,24 +763,63 @@ class LeoRemoteActivity : AppCompatActivity() {
                     downY = e.y
                     downAt = System.currentTimeMillis()
                 }
-
                 MotionEvent.ACTION_MOVE -> {
                     val dx = ((e.x - lastX) * 1.35f).toInt().coerceIn(-320, 320)
                     val dy = ((e.y - lastY) * 1.35f).toInt().coerceIn(-320, 320)
                     lastX = e.x
                     lastY = e.y
-
                     if (e.pointerCount >= 2) {
                         callback(0, 0, false, (-dy / 3).coerceIn(-12, 12))
                     } else if (dx != 0 || dy != 0) {
                         callback(dx, dy, false, 0)
                     }
                 }
-
                 MotionEvent.ACTION_UP -> {
                     val moved = abs(e.x - downX) + abs(e.y - downY)
                     if (moved < 18f && System.currentTimeMillis() - downAt < 300) {
                         callback(0, 0, true, 0)
+                    }
+                }
+            }
+            return true
+        }
+    }
+
+    private class GesturePadView(
+        context: android.content.Context,
+        private val callback: (String) -> Unit
+    ) : View(context) {
+        private var downX = 0f
+        private var downY = 0f
+        private var downAt = 0L
+
+        init {
+            background = GradientDrawable().apply {
+                cornerRadius = context.resources.displayMetrics.density * 22f
+                setColor(Color.rgb(17, 21, 27))
+                setStroke(context.resources.displayMetrics.density.toInt(), Color.rgb(39, 48, 60))
+            }
+        }
+
+        override fun onTouchEvent(e: MotionEvent): Boolean {
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = e.x
+                    downY = e.y
+                    downAt = System.currentTimeMillis()
+                }
+                MotionEvent.ACTION_UP -> {
+                    val dx = e.x - downX
+                    val dy = e.y - downY
+                    val ax = abs(dx)
+                    val ay = abs(dy)
+                    val threshold = resources.displayMetrics.density * 34f
+                    if (ax < threshold && ay < threshold && System.currentTimeMillis() - downAt < 350) {
+                        callback("ok")
+                    } else if (ax > ay) {
+                        callback(if (dx > 0) "right" else "left")
+                    } else {
+                        callback(if (dy > 0) "down" else "up")
                     }
                 }
             }
