@@ -48,10 +48,10 @@ tree.write(manifest_path, encoding="utf-8", xml_declaration=True)
 
 stream_path = ANDROID / "java" / "com" / "metallic" / "chiaki" / "stream" / "StreamActivity.kt"
 s = stream_path.read_text(encoding="utf-8")
-s = s.replace("import android.app.AlertDialog\n", "import android.app.AlertDialog\nimport android.content.pm.ActivityInfo\nimport android.graphics.Color\n")
-s = s.replace("import android.widget.EditText\n", "import android.widget.EditText\nimport android.widget.FrameLayout\n")
+s = s.replace("import android.app.AlertDialog\n", "import android.app.AlertDialog\nimport android.content.pm.ActivityInfo\nimport android.content.res.ColorStateList\nimport android.graphics.Color\n")
+s = s.replace("import android.widget.EditText\n", "import android.widget.EditText\nimport android.widget.FrameLayout\nimport android.widget.ArrayAdapter\nimport android.widget.Button\nimport android.widget.LinearLayout\nimport android.widget.Spinner\nimport android.widget.TextView\n")
 s = s.replace('const val EXTRA_CONNECT_INFO = "connect_info"\n', 'const val EXTRA_CONNECT_INFO = "connect_info"\n\t\tconst val EXTRA_CONTROLLER_ONLY = "leo_controller_only"\n')
-s = s.replace("private lateinit var insetsController: WindowInsetsControllerCompat\n", "private lateinit var insetsController: WindowInsetsControllerCompat\n\tprivate var controllerOnly = false\n")
+s = s.replace("private lateinit var insetsController: WindowInsetsControllerCompat\n", "private lateinit var insetsController: WindowInsetsControllerCompat\n\tprivate var controllerOnly = false\n\tprivate var controllerCover: android.view.View? = null\n\tprivate var leoInputIndicator: TextView? = null\n")
 needle = "\t\tbinding = ActivityStreamBinding.inflate(layoutInflater)\n\t\tsetContentView(binding.root)\n"
 replacement = needle + "\n\t\tcontrollerOnly = intent.getBooleanExtra(EXTRA_CONTROLLER_ONLY, false)\n\t\tif(controllerOnly)\n\t\t{\n\t\t\trequestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE\n\t\t\tviewModel.setOnScreenControlsEnabled(true)\n\t\t\tviewModel.setTouchpadOnlyEnabled(false)\n\t\t\tval cover = android.view.View(this).apply { setBackgroundColor(Color.rgb(11, 13, 16)) }\n\t\t\tbinding.mainStreamLayout.addView(cover, 1, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))\n\t\t\tbinding.overlay.visibility = android.view.View.GONE\n\t\t}\n"
 if needle not in s:
