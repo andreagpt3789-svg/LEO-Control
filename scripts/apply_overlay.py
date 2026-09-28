@@ -44,7 +44,22 @@ leo_register.set(android + "exported", "false")
 leo_register.set(android + "label", "Collega PS5")
 app.insert(1, leo_register)
 
+leo_controller = ET.Element("activity")
+leo_controller.set(android + "name", ".leo.LeoPs5ControllerActivity")
+leo_controller.set(android + "exported", "false")
+leo_controller.set(android + "screenOrientation", "sensorLandscape")
+leo_controller.set(android + "configChanges", "keyboard|keyboardHidden|orientation|screenSize")
+leo_controller.set(android + "theme", "@style/StreamTheme")
+leo_controller.set(android + "label", "LEO PS5")
+app.insert(2, leo_controller)
+
 tree.write(manifest_path, encoding="utf-8", xml_declaration=True)
+
+gradle_path = UP / "android" / "app" / "build.gradle"
+gradle = gradle_path.read_text(encoding="utf-8")
+gradle = gradle.replace("versionCode 12", "versionCode 90", 1)
+gradle = gradle.replace("versionName chiakiVersion", 'versionName "0.9.0"', 1)
+gradle_path.write_text(gradle, encoding="utf-8")
 
 stream_path = ANDROID / "java" / "com" / "metallic" / "chiaki" / "stream" / "StreamActivity.kt"
 s = stream_path.read_text(encoding="utf-8")
