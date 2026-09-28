@@ -53,12 +53,20 @@ leo_controller.set(android + "theme", "@style/StreamTheme")
 leo_controller.set(android + "label", "LEO PS5")
 app.insert(2, leo_controller)
 
+leo_remote = ET.Element("activity")
+leo_remote.set(android + "name", ".leo.LeoRemoteActivity")
+leo_remote.set(android + "exported", "false")
+leo_remote.set(android + "label", "LEO Remote")
+app.insert(3, leo_remote)
+
 tree.write(manifest_path, encoding="utf-8", xml_declaration=True)
 
 gradle_path = UP / "android" / "app" / "build.gradle"
 gradle = gradle_path.read_text(encoding="utf-8")
-gradle = gradle.replace("versionCode 12", "versionCode 90", 1)
-gradle = gradle.replace("versionName chiakiVersion", 'versionName "0.9.0"', 1)
+gradle = gradle.replace("versionCode 12", "versionCode 100", 1)
+gradle = gradle.replace("versionName chiakiVersion", 'versionName "0.10.0"', 1)
+if 'com.squareup.okhttp3:okhttp:4.12.0' not in gradle:
+    gradle = gradle.replace('dependencies {', 'dependencies {\n    implementation "com.squareup.okhttp3:okhttp:4.12.0"', 1)
 gradle_path.write_text(gradle, encoding="utf-8")
 
 stream_path = ANDROID / "java" / "com" / "metallic" / "chiaki" / "stream" / "StreamActivity.kt"
