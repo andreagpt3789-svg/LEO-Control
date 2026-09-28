@@ -110,7 +110,7 @@ class LeoMainActivity : AppCompatActivity() {
             javaScriptEnabled = true
             domStorageEnabled = true
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-            userAgentString = userAgentString + " LEOControlAndroid/0.8.1"
+            userAgentString = userAgentString + " LEOControlAndroid/0.8.2"
         }
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean =
