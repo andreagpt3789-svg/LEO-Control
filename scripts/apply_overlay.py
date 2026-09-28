@@ -62,6 +62,57 @@ replacement2 = "\tprivate fun showOverlay()\n\t{\n\t\tif(controllerOnly)\n\t\t{\
 if needle2 not in s:
     raise RuntimeError("showOverlay insertion point not found")
 s = s.replace(needle2, replacement2, 1)
+controls_old = """\tprivate var controlsJob: Job? = null
+
+\toverride fun onAttachFragment(fragment: Fragment)
+\t{
+\t\tsuper.onAttachFragment(fragment)
+\t\tif(fragment is TouchControlsFragment)
+\t\t{
+\t\t\tcontrolsJob?.cancel()
+\t\t\tcontrolsJob = fragment.controllerState
+\t\t\t\t.onEach { viewModel.input.touchControllerState = it }
+\t\t\t\t.launchIn(lifecycleScope)
+\t\t\tfragment.onScreenControlsEnabled = viewModel.onScreenControlsEnabled
+\t\t\tif(fragment is TouchpadOnlyFragment)
+\t\t\t\tfragment.touchpadOnlyEnabled = viewModel.touchpadOnlyEnabled
+\t\t}
+\t}
+"""
+
+controls_new = """\tprivate val controlsJobs = mutableMapOf<String, Job>()
+
+\toverride fun onAttachFragment(fragment: Fragment)
+\t{
+\t\tsuper.onAttachFragment(fragment)
+\t\tif(fragment is TouchControlsFragment)
+\t\t{
+\t\t\tval key = fragment.javaClass.name
+\t\t\tcontrolsJobs.remove(key)?.cancel()
+\t\t\tcontrolsJobs[key] = fragment.controllerState
+\t\t\t\t.onEach { viewModel.input.touchControllerState = it }
+\t\t\t\t.launchIn(lifecycleScope)
+\t\t\tfragment.onScreenControlsEnabled = viewModel.onScreenControlsEnabled
+\t\t\tif(fragment is TouchpadOnlyFragment)
+\t\t\t\tfragment.touchpadOnlyEnabled = viewModel.touchpadOnlyEnabled
+\t\t}
+\t}
+"""
+
+if controls_old not in s:
+    raise RuntimeError("touch controls listener block not found")
+s = s.replace(controls_old, controls_new, 1)
+s = s.replace(
+    """\t\tcontrolsJob?.cancel()
+\t}
+""",
+    """\t\tcontrolsJobs.values.forEach { it.cancel() }
+\t\tcontrolsJobs.clear()
+\t}
+""",
+    1
+)
+
 stream_path.write_text(s, encoding="utf-8")
 
 print("LEO overlay applied")
