@@ -32,7 +32,7 @@ jobs:
       - name: Install native build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
+          sudo apt-get install -y protobuf-compiler python3-protobuf
 
       - name: Fetch pinned chiaki-ng source
         run: |
