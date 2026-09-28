@@ -22,6 +22,15 @@ if app is None:
 app.set(android + "label", "LEO Control")
 app.set(android + "usesCleartextTraffic", "true")
 
+queries = manifest.find("queries")
+if queries is None:
+    queries = ET.Element("queries")
+    app_index = list(manifest).index(app)
+    manifest.insert(app_index, queries)
+if not any(p.get(android + "name") == "com.universal.remote.multi" for p in queries.findall("package")):
+    pkg = ET.SubElement(queries, "package")
+    pkg.set(android + "name", "com.universal.remote.multi")
+
 for activity in list(app.findall("activity")):
     if activity.get(android + "name") == ".main.MainActivity":
         for f in list(activity.findall("intent-filter")):
@@ -63,10 +72,16 @@ tree.write(manifest_path, encoding="utf-8", xml_declaration=True)
 
 gradle_path = UP / "android" / "app" / "build.gradle"
 gradle = gradle_path.read_text(encoding="utf-8")
-gradle = gradle.replace("versionCode 12", "versionCode 110", 1)
-gradle = gradle.replace("versionName chiakiVersion", 'versionName "0.11.0"', 1)
-if 'com.squareup.okhttp3:okhttp:4.12.0' not in gradle:
-    gradle = gradle.replace('dependencies {', 'dependencies {\n    implementation "com.squareup.okhttp3:okhttp:4.12.0"', 1)
+gradle = gradle.replace("versionCode 12", "versionCode 120", 1)
+gradle = gradle.replace("versionName chiakiVersion", 'versionName "0.12.0"', 1)
+deps = [
+    'implementation "com.squareup.okhttp3:okhttp:4.12.0"',
+    'implementation "dev.mobile:dadb:2.0.0"',
+    'implementation "org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5"',
+]
+for dep in reversed(deps):
+    if dep not in gradle:
+        gradle = gradle.replace('dependencies {', 'dependencies {\n    ' + dep, 1)
 gradle_path.write_text(gradle, encoding="utf-8")
 
 stream_path = ANDROID / "java" / "com" / "metallic" / "chiaki" / "stream" / "StreamActivity.kt"
