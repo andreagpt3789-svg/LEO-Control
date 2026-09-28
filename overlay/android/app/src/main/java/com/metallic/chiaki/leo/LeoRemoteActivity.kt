@@ -572,7 +572,10 @@ class LeoRemoteActivity : AppCompatActivity() {
             .setPositiveButton("Associa") { _, _ ->
                 vidaa?.submitPin(input.text.toString()) { result ->
                     runOnUiThread {
-                        if (result.ok) {
+                        if (result.ok && result.message.contains("associata", ignoreCase = true)) {
+                            setStatus("● diretto", GREEN.toInt())
+                            Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
+                        } else if (result.ok) {
                             setStatus("● attendo TV…", MUTED.toInt())
                             Toast.makeText(this, result.message, Toast.LENGTH_SHORT).show()
                         } else {
