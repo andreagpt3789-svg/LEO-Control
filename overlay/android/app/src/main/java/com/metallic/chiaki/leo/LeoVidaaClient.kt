@@ -42,7 +42,7 @@ class LeoVidaaClient(private val context: Context) {
         private const val P12_PASSWORD = "186e990688070325a1c4b0ce275d2388"
 
         private const val PATTERN = "38D65DC30F45109A369A86FCE866A85B"
-        private const val SUFFIX_MODERN = "h!i@s#$v%i^d&a*a"
+        private const val SUFFIX_MODERN = "h!i@s#\\$v%i^d&a*a"
         private const val SUFFIX_LEGACY = "h*i&s%e!r^v0i1c9"
         private const val XOR_CONST = 0x569814772b03a968L
     }
