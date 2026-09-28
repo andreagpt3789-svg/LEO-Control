@@ -11,7 +11,6 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.EditText
 import android.widget.GridLayout
 import android.widget.LinearLayout
@@ -52,20 +51,23 @@ class LeoMainActivity : AppCompatActivity() {
     }
 
     private lateinit var hub: LeoHubClient
+    private lateinit var vidaa: LeoVidaaClient
+    private lateinit var fire: LeoFireClient
     private var registrationPending = false
 
     private lateinit var pcStatus: TextView
     private lateinit var tvStatus: TextView
     private lateinit var fireStatus: TextView
     private lateinit var psStatus: TextView
-    private lateinit var homeHeadline: TextView
     private lateinit var homeSubline: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         hub = LeoHubClient(this)
-        window.statusBarColor = Color.rgb(9, 11, 15)
-        window.navigationBarColor = Color.rgb(9, 11, 15)
+        vidaa = LeoVidaaClient(this)
+        fire = LeoFireClient(this)
+        window.statusBarColor = BG.toInt()
+        window.navigationBarColor = BG.toInt()
         buildHome()
         refreshStatuses()
     }
@@ -80,6 +82,12 @@ class LeoMainActivity : AppCompatActivity() {
             val registered = firstRegisteredPs5()
             if (registered != null && ip.isNotBlank()) startController(registered, ip)
         }
+    }
+
+    override fun onDestroy() {
+        vidaa.disconnect()
+        fire.close()
+        super.onDestroy()
     }
 
     private fun buildHome() {
@@ -103,67 +111,67 @@ class LeoMainActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { setMargins(0, dp(12), 0, dp(18)) })
 
-        body.addView(sectionHeader("DISPOSITIVI", "Tutto in un'unica Home"))
+        body.addView(sectionHeader("DISPOSITIVI", "Tutti insieme. Ognuno con la propria connessione."))
 
         val grid = GridLayout(this).apply {
             columnCount = 2
             useDefaultMargins = false
         }
 
-        val pc = deviceCard(
+        grid.addView(deviceCard(
             badge = "PC",
             title = "PC Windows",
             subtitle = "Mouse · tastiera · media",
             mode = "AGENT",
             accent = Color.rgb(99, 211, 233),
             statusSetter = { pcStatus = it }
-        ) { openHubRemote(LeoRemoteActivity.DEVICE_PC) }
+        ) { openDevice(LeoRemoteActivity.DEVICE_PC) }, gridLp())
 
-        val tv = deviceCard(
+        grid.addView(deviceCard(
             badge = "TV",
             title = "Hisense",
-            subtitle = "Telecomando · app · touchpad",
-            mode = "HUB",
+            subtitle = "Telecomando · app · gesti",
+            mode = "DIRECT",
             accent = Color.rgb(104, 215, 160),
             statusSetter = { tvStatus = it }
-        ) { openHubRemote(LeoRemoteActivity.DEVICE_TV) }
+        ) { openDevice(LeoRemoteActivity.DEVICE_TV) }, gridLp())
 
-        val fire = deviceCard(
+        grid.addView(deviceCard(
             badge = "FT",
             title = "Fire TV",
-            subtitle = "Telecomando · testo · touchpad",
-            mode = "HUB",
+            subtitle = "Telecomando · testo · gesti",
+            mode = "DIRECT",
             accent = Color.rgb(242, 166, 90),
             statusSetter = { fireStatus = it }
-        ) { openHubRemote(LeoRemoteActivity.DEVICE_FIRE) }
+        ) { openDevice(LeoRemoteActivity.DEVICE_FIRE) }, gridLp())
 
-        val ps5 = deviceCard(
+        grid.addView(deviceCard(
             badge = "PS",
             title = "PlayStation 5",
             subtitle = "Joypad LEO · diretto",
             mode = "DIRECT",
             accent = Color.rgb(109, 137, 255),
             statusSetter = { psStatus = it }
-        ) { openPs5() }
+        ) { openPs5() }, gridLp())
 
-        grid.addView(pc, gridLp())
-        grid.addView(tv, gridLp())
-        grid.addView(fire, gridLp())
-        grid.addView(ps5, gridLp())
         body.addView(grid)
 
-        body.addView(sectionHeader("SCENE RAPIDE", "Un tocco e parti"), LinearLayout.LayoutParams(
+        body.addView(sectionHeader("SCENE RAPIDE", "Accesso immediato"), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { setMargins(0, dp(18), 0, dp(4)) })
 
         val quick1 = row()
-        quick1.addView(quickAction("TV", "Accendi e apri TV") { runScene("tv", false) }, weight())
-        quick1.addView(quickAction("FIRE", "Apri Fire TV") { runScene("fire_tv", false) }, weight())
+        quick1.addView(quickAction("TV", "Apri telecomando") {
+            openDevice(LeoRemoteActivity.DEVICE_TV)
+        }, weight())
+        quick1.addView(quickAction("FIRE", "Apri telecomando") {
+            openDevice(LeoRemoteActivity.DEVICE_FIRE)
+        }, weight())
         body.addView(quick1)
 
         val quick2 = row()
-        quick2.addView(quickAction("PS5", "Avvia console") { runScene("ps5", true) }, weight())
-        quick2.addView(quickAction("NETFLIX", "Apri Netflix") { runScene("netflix", false) }, weight())
+        quick2.addView(quickAction("PS5", "Apri joypad") { openPs5() }, weight())
+        quick2.addView(quickAction("NETFLIX", "Apri sulla Hisense") { launchNetflixDirect() }, weight())
         body.addView(quick2)
 
         body.addView(footer())
@@ -220,36 +228,33 @@ class LeoMainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        val dot = TextView(this).apply {
+        top.addView(TextView(this).apply {
             text = "●"
             textSize = 14f
             setTextColor(GREEN.toInt())
-        }
-        val label = TextView(this).apply {
-            text = "  CASA CONNESSA"
+        })
+        top.addView(TextView(this).apply {
+            text = "  LOCAL CONTROL"
             textSize = 11f
             letterSpacing = 0.10f
             setTextColor(MUTED.toInt())
             setTypeface(typeface, Typeface.BOLD)
-        }
-        top.addView(dot)
-        top.addView(label)
+        })
         card.addView(top)
 
-        homeHeadline = TextView(this).apply {
-            text = "I tuoi dispositivi, senza confusione."
+        card.addView(TextView(this).apply {
+            text = "Il telefono è il telecomando."
             textSize = 20f
             setTextColor(TEXT.toInt())
             setTypeface(typeface, Typeface.BOLD)
             setPadding(0, dp(10), 0, dp(4))
-        }
+        })
         homeSubline = TextView(this).apply {
-            text = "PS5 diretta dal telefono. PC, TV e Fire TV seguono lo stato del LEO Agent."
+            text = "Hisense, Fire TV e PS5 comunicano direttamente sulla rete locale. L'Agent serve solo per comandare Windows."
             textSize = 12.5f
             setTextColor(MUTED.toInt())
             setLineSpacing(0f, 1.08f)
         }
-        card.addView(homeHeadline)
         card.addView(homeSubline)
         return card
     }
@@ -349,19 +354,18 @@ class LeoMainActivity : AppCompatActivity() {
             setTextColor(MUTED.toInt())
         }
         statusSetter(status)
-        val chevron = TextView(this).apply {
+        bottom.addView(status, LinearLayout.LayoutParams(0, dp(28), 1f))
+        bottom.addView(TextView(this).apply {
             text = "›"
             textSize = 24f
             setTextColor(MUTED.toInt())
-        }
-        bottom.addView(status, LinearLayout.LayoutParams(0, dp(28), 1f))
-        bottom.addView(chevron, LinearLayout.LayoutParams(dp(24), dp(28)))
+        }, LinearLayout.LayoutParams(dp(24), dp(28)))
         card.addView(bottom)
         return card
     }
 
-    private fun quickAction(title: String, subtitle: String, action: () -> Unit): View {
-        return LinearLayout(this).apply {
+    private fun quickAction(title: String, subtitle: String, action: () -> Unit): View =
+        LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(14), dp(12), dp(14), dp(12))
@@ -383,121 +387,160 @@ class LeoMainActivity : AppCompatActivity() {
                 setPadding(0, dp(3), 0, 0)
             })
         }
-    }
 
-    private fun footer(): View {
-        return LinearLayout(this).apply {
+    private fun footer(): View =
+        LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(2), dp(18), dp(2), 0)
             addView(TextView(this@LeoMainActivity).apply {
-                text = "LEO Control  0.11.0"
+                text = "LEO Control  0.12.0"
                 textSize = 10.5f
                 setTextColor(Color.rgb(90, 98, 110))
             }, LinearLayout.LayoutParams(0, dp(28), 1f))
             addView(TextView(this@LeoMainActivity).apply {
-                text = "LOCAL FIRST"
+                text = "PHONE FIRST"
                 textSize = 9f
                 letterSpacing = 0.12f
                 setTextColor(Color.rgb(90, 98, 110))
             })
         }
-    }
 
     private fun refreshStatuses() {
         lifecycleScope.launch {
             val registered = firstRegisteredPs5()
-            runOnUiThread {
-                if (::psStatus.isInitialized) {
-                    if (registered != null) {
-                        psStatus.text = "● pronto"
-                        psStatus.setTextColor(GREEN.toInt())
-                    } else {
-                        psStatus.text = "● da associare"
-                        psStatus.setTextColor(ORANGE.toInt())
-                    }
+            if (::psStatus.isInitialized) {
+                if (registered != null) {
+                    psStatus.text = "● pronto"
+                    psStatus.setTextColor(GREEN.toInt())
+                } else {
+                    psStatus.text = "● da associare"
+                    psStatus.setTextColor(ORANGE.toInt())
                 }
             }
         }
 
-        hub.getStatus { reachable, paired, _ ->
+        Thread {
+            val tvReachable = vidaa.isReachable()
+            val tvPaired = vidaa.isPaired()
+            val fireIp = fire.savedIp()
+            val fireReachable = fire.isReachable()
             runOnUiThread {
-                val text: String
-                val color: Int
-                when {
-                    !reachable -> {
-                        text = "● agent offline"
-                        color = ORANGE.toInt()
-                        homeSubline.text = "PS5 è disponibile. Per PC, Hisense e Fire TV l'Agent Windows non è attivo."
-                    }
-                    paired -> {
-                        text = "● pronto"
-                        color = GREEN.toInt()
-                        homeSubline.text = "Tutti i controlli locali sono pronti. PS5 lavora direttamente dal telefono."
-                    }
-                    else -> {
-                        text = "● da associare"
-                        color = ORANGE.toInt()
-                        homeSubline.text = "LEO Agent è raggiungibile ma questo telefono deve ancora essere associato."
+                if (::tvStatus.isInitialized) {
+                    when {
+                        tvReachable && tvPaired -> {
+                            tvStatus.text = "● diretto"
+                            tvStatus.setTextColor(GREEN.toInt())
+                        }
+                        tvReachable -> {
+                            tvStatus.text = "● da associare"
+                            tvStatus.setTextColor(ORANGE.toInt())
+                        }
+                        else -> {
+                            tvStatus.text = "● TV offline"
+                            tvStatus.setTextColor(MUTED.toInt())
+                        }
                     }
                 }
-                listOfNotNull(
-                    if (::pcStatus.isInitialized) pcStatus else null,
-                    if (::tvStatus.isInitialized) tvStatus else null,
-                    if (::fireStatus.isInitialized) fireStatus else null
-                ).forEach {
-                    it.text = text
-                    it.setTextColor(color)
+                if (::fireStatus.isInitialized) {
+                    when {
+                        fireReachable -> {
+                            fireStatus.text = "● diretto"
+                            fireStatus.setTextColor(GREEN.toInt())
+                        }
+                        fireIp.isBlank() -> {
+                            fireStatus.text = "● da trovare"
+                            fireStatus.setTextColor(ORANGE.toInt())
+                        }
+                        else -> {
+                            fireStatus.text = "● Fire TV offline"
+                            fireStatus.setTextColor(MUTED.toInt())
+                        }
+                    }
+                }
+            }
+        }.start()
+
+        hub.getStatus { reachable, paired, _ ->
+            runOnUiThread {
+                if (::pcStatus.isInitialized) {
+                    when {
+                        !reachable -> {
+                            pcStatus.text = "● agent offline"
+                            pcStatus.setTextColor(MUTED.toInt())
+                        }
+                        paired -> {
+                            pcStatus.text = "● agent pronto"
+                            pcStatus.setTextColor(GREEN.toInt())
+                        }
+                        else -> {
+                            pcStatus.text = "● agent da associare"
+                            pcStatus.setTextColor(ORANGE.toInt())
+                        }
+                    }
                 }
             }
         }
     }
 
-    private fun openHubRemote(device: String) {
+    private fun openDevice(device: String) {
+        if (device == LeoRemoteActivity.DEVICE_PC) {
+            openPcRemote()
+        } else {
+            startActivity(Intent(this, LeoRemoteActivity::class.java).putExtra(
+                LeoRemoteActivity.EXTRA_DEVICE,
+                device
+            ))
+        }
+    }
+
+    private fun openPcRemote() {
         hub.getStatus { reachable, paired, _ ->
             runOnUiThread {
                 when {
-                    !reachable -> showAgentOffline(device)
+                    !reachable -> AlertDialog.Builder(this)
+                        .setTitle("PC non raggiungibile")
+                        .setMessage(
+                            "Solo il controllo di Windows richiede LEO Agent sul PC. " +
+                                "Hisense, Fire TV e PS5 non passano più dal computer."
+                        )
+                        .setPositiveButton("Impostazioni") { _, _ -> showSettings() }
+                        .setNegativeButton("Chiudi", null)
+                        .show()
+
                     !paired -> showPairDialog {
-                        startActivity(Intent(this, LeoRemoteActivity::class.java).putExtra(LeoRemoteActivity.EXTRA_DEVICE, device))
+                        startActivity(Intent(this, LeoRemoteActivity::class.java).putExtra(
+                            LeoRemoteActivity.EXTRA_DEVICE,
+                            LeoRemoteActivity.DEVICE_PC
+                        ))
                     }
-                    else -> startActivity(Intent(this, LeoRemoteActivity::class.java).putExtra(LeoRemoteActivity.EXTRA_DEVICE, device))
+
+                    else -> startActivity(Intent(this, LeoRemoteActivity::class.java).putExtra(
+                        LeoRemoteActivity.EXTRA_DEVICE,
+                        LeoRemoteActivity.DEVICE_PC
+                    ))
                 }
             }
         }
     }
 
-    private fun showAgentOffline(device: String) {
-        val name = when (device) {
-            LeoRemoteActivity.DEVICE_TV -> "Hisense"
-            LeoRemoteActivity.DEVICE_FIRE -> "Fire TV"
-            else -> "PC"
-        }
-        AlertDialog.Builder(this)
-            .setTitle("$name non raggiungibile")
-            .setMessage(
-                "LEO Agent sul PC non è attivo. In questa build PC, Hisense e Fire TV passano ancora dall'Agent. " +
-                    "La PS5 invece funziona già direttamente dal telefono."
-            )
-            .setPositiveButton("Impostazioni") { _, _ -> showSettings() }
-            .setNegativeButton("Chiudi", null)
-            .show()
-    }
-
-    private fun runScene(scene: String, openNativePs5: Boolean) {
-        if (openNativePs5) {
-            openPs5()
+    private fun launchNetflixDirect() {
+        if (!vidaa.isPaired()) {
+            openDevice(LeoRemoteActivity.DEVICE_TV)
             return
         }
-        hub.runScene(scene) { ok, _, message, code ->
+        Thread {
+            val result = vidaa.launchApp("netflix")
             runOnUiThread {
-                when {
-                    code == 401 -> showPairDialog { runScene(scene, false) }
-                    !ok -> Toast.makeText(this, message.ifBlank { "LEO Agent non disponibile" }, Toast.LENGTH_SHORT).show()
-                    else -> Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-                }
+                Toast.makeText(
+                    this,
+                    if (result.isSuccess) "Netflix avviato sulla Hisense"
+                    else result.exceptionOrNull()?.message ?: "Hisense non raggiungibile",
+                    Toast.LENGTH_LONG
+                ).show()
+                refreshStatuses()
             }
-        }
+        }.start()
     }
 
     private fun showPairDialog(afterSuccess: (() -> Unit)? = null) {
@@ -507,11 +550,10 @@ class LeoMainActivity : AppCompatActivity() {
         }
         AlertDialog.Builder(this)
             .setTitle("Associa LEO Agent")
-            .setMessage("Inserisci il codice mostrato da LEO Agent sul PC. L'associazione viene salvata su questo telefono.")
+            .setMessage("Questo pairing riguarda solo il controllo del PC Windows.")
             .setView(input)
             .setPositiveButton("Associa") { _, _ ->
-                val code = input.text.toString().trim()
-                hub.pair(code) { ok, msg ->
+                hub.pair(input.text.toString().trim()) { ok, msg ->
                     runOnUiThread {
                         Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
                         refreshStatuses()
@@ -530,25 +572,32 @@ class LeoMainActivity : AppCompatActivity() {
             setPadding(dp(22), dp(8), dp(22), 0)
         }
 
-        box.addView(TextView(this).apply {
-            text = "LEO Agent"
-            textSize = 12f
-            setTextColor(Color.DKGRAY)
-            setPadding(0, dp(8), 0, 0)
-        })
-        val hubInput = EditText(this).apply {
-            hint = "192.168.31.75:8765"
-            setText(hub.hubUrl())
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        fun fieldLabel(value: String) {
+            box.addView(TextView(this).apply {
+                text = value
+                textSize = 12f
+                setTextColor(Color.DKGRAY)
+                setPadding(0, dp(10), 0, 0)
+            })
         }
-        box.addView(hubInput)
 
-        box.addView(TextView(this).apply {
-            text = "PlayStation 5"
-            textSize = 12f
-            setTextColor(Color.DKGRAY)
-            setPadding(0, dp(12), 0, 0)
-        })
+        fieldLabel("Hisense VIDAA")
+        val tvIp = EditText(this).apply {
+            hint = "IP TV"
+            setText(vidaa.savedIp())
+            inputType = InputType.TYPE_CLASS_PHONE
+        }
+        box.addView(tvIp)
+
+        fieldLabel("Fire TV")
+        val fireIp = EditText(this).apply {
+            hint = "IP Fire TV (vuoto = ricerca automatica)"
+            setText(fire.savedIp())
+            inputType = InputType.TYPE_CLASS_PHONE
+        }
+        box.addView(fireIp)
+
+        fieldLabel("PlayStation 5")
         val ps5 = EditText(this).apply {
             hint = "IP PS5"
             setText(ps5Ip())
@@ -556,15 +605,25 @@ class LeoMainActivity : AppCompatActivity() {
         }
         box.addView(ps5)
 
+        fieldLabel("PC Windows · LEO Agent")
+        val hubInput = EditText(this).apply {
+            hint = "192.168.31.75:8765"
+            setText(hub.hubUrl())
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        }
+        box.addView(hubInput)
+
         AlertDialog.Builder(this)
-            .setTitle("Impostazioni")
+            .setTitle("Dispositivi")
             .setView(box)
             .setPositiveButton("Salva") { _, _ ->
-                hub.setHubUrl(hubInput.text.toString())
+                vidaa.setIp(tvIp.text.toString())
+                fire.setIp(fireIp.text.toString())
                 prefs.edit().putString(KEY_PS5_IP, ps5.text.toString().trim()).apply()
+                hub.setHubUrl(hubInput.text.toString())
                 refreshStatuses()
             }
-            .setNeutralButton("Associa Agent") { _, _ -> showPairDialog() }
+            .setNeutralButton("Associa PC") { _, _ -> showPairDialog() }
             .setNegativeButton("Chiudi", null)
             .show()
     }
