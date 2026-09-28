@@ -63,8 +63,8 @@ tree.write(manifest_path, encoding="utf-8", xml_declaration=True)
 
 gradle_path = UP / "android" / "app" / "build.gradle"
 gradle = gradle_path.read_text(encoding="utf-8")
-gradle = gradle.replace("versionCode 12", "versionCode 100", 1)
-gradle = gradle.replace("versionName chiakiVersion", 'versionName "0.10.0"', 1)
+gradle = gradle.replace("versionCode 12", "versionCode 110", 1)
+gradle = gradle.replace("versionName chiakiVersion", 'versionName "0.11.0"', 1)
 if 'com.squareup.okhttp3:okhttp:4.12.0' not in gradle:
     gradle = gradle.replace('dependencies {', 'dependencies {\n    implementation "com.squareup.okhttp3:okhttp:4.12.0"', 1)
 gradle_path.write_text(gradle, encoding="utf-8")
