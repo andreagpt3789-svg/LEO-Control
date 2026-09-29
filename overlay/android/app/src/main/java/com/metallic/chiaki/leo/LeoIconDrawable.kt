@@ -123,6 +123,78 @@ class LeoIconDrawable(
                 canvas.drawCircle(x(.68f),y(.47f),s*.035f,paint)
                 canvas.drawCircle(x(.76f),y(.58f),s*.035f,paint)
             }
+            "enter" -> {
+                canvas.drawLine(x(.78f),y(.28f),x(.78f),y(.58f),paint)
+                canvas.drawLine(x(.78f),y(.58f),x(.34f),y(.58f),paint)
+                canvas.drawLine(x(.34f),y(.58f),x(.47f),y(.44f),paint)
+                canvas.drawLine(x(.34f),y(.58f),x(.47f),y(.72f),paint)
+            }
+            "backspace" -> {
+                val p=Path().apply{ moveTo(x(.18f),y(.50f)); lineTo(x(.34f),y(.28f)); lineTo(x(.86f),y(.28f)); lineTo(x(.86f),y(.72f)); lineTo(x(.34f),y(.72f)); close() }
+                canvas.drawPath(p,paint)
+                canvas.drawLine(x(.52f),y(.40f),x(.72f),y(.60f),paint)
+                canvas.drawLine(x(.72f),y(.40f),x(.52f),y(.60f),paint)
+            }
+            "trash" -> {
+                canvas.drawRoundRect(RectF(x(.30f),y(.28f),x(.70f),y(.82f)),s*.05f,s*.05f,paint)
+                canvas.drawLine(x(.24f),y(.28f),x(.76f),y(.28f),paint)
+                canvas.drawLine(x(.40f),y(.18f),x(.60f),y(.18f),paint)
+                canvas.drawLine(x(.42f),y(.40f),x(.42f),y(.70f),paint)
+                canvas.drawLine(x(.58f),y(.40f),x(.58f),y(.70f),paint)
+            }
+            "mouse_left" -> {
+                canvas.drawRoundRect(RectF(x(.28f),y(.10f),x(.72f),y(.90f)),s*.20f,s*.20f,paint)
+                canvas.drawLine(x(.50f),y(.10f),x(.50f),y(.38f),paint)
+                canvas.drawLine(x(.28f),y(.38f),x(.72f),y(.38f),paint)
+                paint.style=Paint.Style.FILL
+                canvas.drawRoundRect(RectF(x(.31f),y(.14f),x(.47f),y(.34f)),s*.05f,s*.05f,paint)
+            }
+            "mouse_right" -> {
+                canvas.drawRoundRect(RectF(x(.28f),y(.10f),x(.72f),y(.90f)),s*.20f,s*.20f,paint)
+                canvas.drawLine(x(.50f),y(.10f),x(.50f),y(.38f),paint)
+                canvas.drawLine(x(.28f),y(.38f),x(.72f),y(.38f),paint)
+                paint.style=Paint.Style.FILL
+                canvas.drawRoundRect(RectF(x(.53f),y(.14f),x(.69f),y(.34f)),s*.05f,s*.05f,paint)
+            }
+            "volume_down" -> {
+                val p=Path().apply{ moveTo(x(.14f),y(.43f)); lineTo(x(.32f),y(.43f)); lineTo(x(.52f),y(.28f)); lineTo(x(.52f),y(.72f)); lineTo(x(.32f),y(.57f)); lineTo(x(.14f),y(.57f)); close() }
+                canvas.drawPath(p,paint)
+                canvas.drawLine(x(.65f),y(.50f),x(.86f),y(.50f),paint)
+            }
+            "volume_up" -> {
+                val p=Path().apply{ moveTo(x(.12f),y(.43f)); lineTo(x(.30f),y(.43f)); lineTo(x(.50f),y(.28f)); lineTo(x(.50f),y(.72f)); lineTo(x(.30f),y(.57f)); lineTo(x(.12f),y(.57f)); close() }
+                canvas.drawPath(p,paint)
+                canvas.drawLine(x(.63f),y(.50f),x(.86f),y(.50f),paint)
+                canvas.drawLine(x(.745f),y(.39f),x(.745f),y(.61f),paint)
+            }
+            "channel_down" -> {
+                canvas.drawLine(x(.28f),y(.28f),x(.72f),y(.28f),paint)
+                canvas.drawLine(x(.28f),y(.52f),x(.72f),y(.52f),paint)
+                canvas.drawLine(x(.40f),y(.16f),x(.34f),y(.64f),paint)
+                canvas.drawLine(x(.66f),y(.16f),x(.60f),y(.64f),paint)
+                canvas.drawLine(x(.40f),y(.78f),x(.60f),y(.78f),paint)
+            }
+            "channel_up" -> {
+                canvas.drawLine(x(.28f),y(.34f),x(.72f),y(.34f),paint)
+                canvas.drawLine(x(.28f),y(.58f),x(.72f),y(.58f),paint)
+                canvas.drawLine(x(.40f),y(.22f),x(.34f),y(.70f),paint)
+                canvas.drawLine(x(.66f),y(.22f),x(.60f),y(.70f),paint)
+                canvas.drawLine(x(.40f),y(.12f),x(.60f),y(.12f),paint)
+                canvas.drawLine(x(.50f),y(.04f),x(.50f),y(.20f),paint)
+            }
+            "live_tv" -> {
+                canvas.drawRoundRect(RectF(x(.10f),y(.22f),x(.90f),y(.76f)),s*.07f,s*.07f,paint)
+                paint.style=Paint.Style.FILL
+                canvas.drawCircle(x(.50f),y(.49f),s*.09f,paint)
+            }
+            "brand_n", "brand_y", "brand_p", "brand_d" -> {
+                paint.style=Paint.Style.FILL
+                paint.textAlign=Paint.Align.CENTER
+                paint.textSize=s*.60f
+                paint.typeface=android.graphics.Typeface.DEFAULT_BOLD
+                val letter=when(icon){"brand_n"->"N";"brand_y"->"Y";"brand_p"->"P";else->"D"}
+                canvas.drawText(letter,x(.50f),y(.70f),paint)
+            }
             "apps" -> {
                 paint.style=Paint.Style.FILL
                 for (xx in listOf(.30f,.70f)) for (yy in listOf(.30f,.70f)) canvas.drawCircle(x(xx),y(yy),s*.09f,paint)
@@ -153,18 +225,31 @@ class LeoIconDrawable(
             val name = when {
                 "power" in l -> "power"
                 "home" in l -> "home"
-                "source" in l || "sorgent" in l || "hdmi" in l -> "source"
+                "sorgent" in l || "source" in l || "hdmi" in l -> "source"
+                l == "tv" -> "live_tv"
                 "menu" in l -> "menu"
+                "backspace" in l -> "backspace"
                 "back" in l || "indietro" in l -> "back"
                 "exit" in l || "esci" in l -> "exit"
                 "mute" in l -> "mute"
-                "vol" in l -> "volume"
+                "vol -" in l || "−  vol" in l -> "volume_down"
+                "vol +" in l || "+  vol" in l -> "volume_up"
+                "ch -" in l -> "channel_down"
+                "ch +" in l -> "channel_up"
                 "play" in l || "media" in l -> "play"
-                "ch " in l || "channel" in l -> "channel"
                 "search" in l || "cerca" in l -> "search"
-                "netflix" in l || "youtube" in l || "prime" in l || "disney" in l -> "apps"
-                "keyboard" in l || "tastiera" in l || "invio" in l || "backspace" in l -> "keyboard"
+                "netflix" in l -> "brand_n"
+                "youtube" in l -> "brand_y"
+                "prime" in l -> "brand_p"
+                "disney" in l -> "brand_d"
+                l == "invio" -> "enter"
+                "svuota" in l -> "trash"
+                "click sinistro" in l -> "mouse_left"
+                "click destro" in l -> "mouse_right"
+                "keyboard" in l || "tastiera" in l -> "keyboard"
                 "mouse" in l || "click" in l -> "mouse"
+                "ch " in l || "channel" in l -> "channel"
+                "vol" in l -> "volume"
                 else -> "apps"
             }
             return LeoIconDrawable(name, color)
