@@ -202,38 +202,53 @@ class LeoMainActivity : AppCompatActivity() {
         val wrap = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(4), 0, dp(4))
+            setPadding(0, dp(6), 0, dp(8))
         }
 
-        val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val mark = TextView(this).apply {
+            text = "L"
+            gravity = Gravity.CENTER
+            textSize = 20f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.rgb(5, 14, 20))
+            background = rounded(ACCENT.toInt(), dp(18).toFloat(), Color.TRANSPARENT)
+        }
+
+        val left = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), 0, 0, 0)
+        }
         left.addView(TextView(this).apply {
             text = "LEO CONTROL"
-            textSize = 10.5f
+            textSize = 9.5f
             letterSpacing = 0.22f
             setTextColor(ACCENT.toInt())
             setTypeface(typeface, Typeface.BOLD)
         })
         left.addView(TextView(this).apply {
-            text = "Casa"
-            textSize = 31f
+            text = "Control Center"
+            textSize = 27f
             setTextColor(TEXT.toInt())
             setTypeface(typeface, Typeface.BOLD)
             includeFontPadding = false
         })
 
         val settings = TextView(this).apply {
-            text = "⚙"
+            text = "SET"
             gravity = Gravity.CENTER
-            textSize = 18f
+            textSize = 9f
+            letterSpacing = 0.08f
+            setTypeface(typeface, Typeface.BOLD)
             setTextColor(TEXT.toInt())
-            background = rounded(SURFACE_2.toInt(), dp(25).toFloat(), BORDER.toInt())
+            background = rounded(Color.rgb(17, 25, 36), dp(22).toFloat(), Color.rgb(38, 53, 74))
             isClickable = true
             isFocusable = true
             setOnClickListener { showSettings() }
         }
 
-        wrap.addView(left, LinearLayout.LayoutParams(0, dp(70), 1f))
-        wrap.addView(settings, LinearLayout.LayoutParams(dp(50), dp(50)))
+        wrap.addView(mark, LinearLayout.LayoutParams(dp(46), dp(46)))
+        wrap.addView(left, LinearLayout.LayoutParams(0, dp(58), 1f))
+        wrap.addView(settings, LinearLayout.LayoutParams(dp(48), dp(44)))
         return wrap
     }
 
@@ -241,11 +256,18 @@ class LeoMainActivity : AppCompatActivity() {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(18), dp(20), dp(18))
-            background = gradient(
-                Color.rgb(18, 42, 58),
-                Color.rgb(13, 21, 32),
-                dp(26).toFloat()
-            )
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(
+                    Color.rgb(18, 51, 70),
+                    Color.rgb(11, 24, 36),
+                    Color.rgb(8, 14, 22)
+                )
+            ).apply {
+                cornerRadius = dp(28).toFloat()
+                setStroke(dp(1), Color.rgb(37, 82, 103))
+            }
+            elevation = dp(3).toFloat()
         }
 
         val top = LinearLayout(this).apply {
@@ -253,34 +275,56 @@ class LeoMainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         top.addView(TextView(this).apply {
-            text = "●"
-            textSize = 13f
-            setTextColor(GREEN.toInt())
+            text = "LIVE"
+            textSize = 8.5f
+            letterSpacing = 0.12f
+            setTypeface(typeface, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            setTextColor(Color.rgb(7, 25, 20))
+            background = rounded(GREEN.toInt(), dp(10).toFloat(), Color.TRANSPARENT)
+            setPadding(dp(8), dp(4), dp(8), dp(4))
         })
         top.addView(TextView(this).apply {
             text = "  RETE LOCALE"
-            textSize = 10f
+            textSize = 9.5f
             letterSpacing = 0.14f
-            setTextColor(Color.rgb(187, 210, 224))
+            setTextColor(Color.rgb(165, 190, 205))
             setTypeface(typeface, Typeface.BOLD)
         })
         card.addView(top)
 
         card.addView(TextView(this).apply {
-            text = "4 dispositivi.\nUna sola app."
-            textSize = 24f
+            text = "Tutto sotto controllo."
+            textSize = 25f
             setTextColor(TEXT.toInt())
             setTypeface(typeface, Typeface.BOLD)
-            setLineSpacing(0f, 0.94f)
-            setPadding(0, dp(12), 0, dp(8))
+            setPadding(0, dp(13), 0, dp(5))
         })
         homeSubline = TextView(this).apply {
-            text = "Hisense, Fire TV e PS5 lavorano direttamente dal telefono. Il PC usa LEO Agent."
+            text = "PC · Hisense · Fire TV · PlayStation 5"
             textSize = 12f
-            setTextColor(Color.rgb(166, 181, 199))
-            setLineSpacing(0f, 1.08f)
+            setTextColor(Color.rgb(173, 192, 208))
         }
         card.addView(homeSubline)
+
+        val line = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(15), 0, 0)
+        }
+        listOf(
+            Color.rgb(85, 207, 243),
+            Color.rgb(72, 218, 190),
+            Color.rgb(255, 170, 74),
+            Color.rgb(112, 139, 255)
+        ).forEach { color ->
+            line.addView(View(this).apply {
+                background = rounded(color, dp(2).toFloat(), Color.TRANSPARENT)
+            }, LinearLayout.LayoutParams(0, dp(4), 1f).apply {
+                setMargins(dp(2), 0, dp(2), 0)
+            })
+        }
+        card.addView(line)
+
         return card
     }
 
@@ -321,29 +365,46 @@ class LeoMainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(14), dp(12), dp(12), dp(12))
-            background = rounded(SURFACE.toInt(), dp(24).toFloat(), BORDER.toInt())
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.rgb(17, 24, 34), Color.rgb(9, 13, 20))
+            ).apply {
+                cornerRadius = dp(24).toFloat()
+                setStroke(
+                    dp(1),
+                    Color.argb(88, Color.red(accent), Color.green(accent), Color.blue(accent))
+                )
+            }
+            elevation = dp(2).toFloat()
             isClickable = true
             isFocusable = true
             setOnClickListener { action() }
         }
 
+        val accentBar = View(this).apply {
+            background = rounded(accent, dp(3).toFloat(), Color.TRANSPARENT)
+        }
+        card.addView(accentBar, LinearLayout.LayoutParams(dp(4), dp(56)).apply {
+            setMargins(0, 0, dp(10), 0)
+        })
+
         val badgeView = TextView(this).apply {
             text = badge
             gravity = Gravity.CENTER
-            textSize = 12f
-            setTextColor(Color.rgb(8, 13, 20))
+            textSize = 11.5f
+            setTextColor(Color.rgb(6, 13, 18))
             setTypeface(typeface, Typeface.BOLD)
             background = rounded(accent, dp(18).toFloat(), Color.TRANSPARENT)
         }
-        card.addView(badgeView, LinearLayout.LayoutParams(dp(52), dp(52)))
+        card.addView(badgeView, LinearLayout.LayoutParams(dp(50), dp(50)))
 
         val center = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), 0, dp(8), 0)
+            setPadding(dp(13), 0, dp(8), 0)
         }
         center.addView(TextView(this).apply {
             text = title
-            textSize = 17f
+            textSize = 17.5f
             includeFontPadding = false
             setTextColor(TEXT.toInt())
             setTypeface(typeface, Typeface.BOLD)
@@ -356,8 +417,8 @@ class LeoMainActivity : AppCompatActivity() {
             maxLines = 1
         })
         val status = TextView(this).apply {
-            text = "● controllo…"
-            textSize = 10f
+            text = "controllo…"
+            textSize = 9.8f
             setTextColor(MUTED.toInt())
         }
         statusSetter(status)
@@ -371,17 +432,22 @@ class LeoMainActivity : AppCompatActivity() {
         right.addView(TextView(this).apply {
             text = mode
             gravity = Gravity.CENTER
-            textSize = 8.5f
+            textSize = 8f
             letterSpacing = 0.10f
-            setTextColor(MUTED.toInt())
-            background = rounded(SURFACE_2.toInt(), dp(10).toFloat(), Color.TRANSPARENT)
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(accent)
+            background = rounded(
+                Color.argb(25, Color.red(accent), Color.green(accent), Color.blue(accent)),
+                dp(10).toFloat(),
+                Color.argb(55, Color.red(accent), Color.green(accent), Color.blue(accent))
+            )
             setPadding(dp(8), dp(4), dp(8), dp(4))
         })
         right.addView(TextView(this).apply {
             text = "›"
             textSize = 27f
             gravity = Gravity.CENTER
-            setTextColor(Color.rgb(141, 157, 180))
+            setTextColor(accent)
         }, LinearLayout.LayoutParams(dp(34), dp(38)))
         card.addView(right, LinearLayout.LayoutParams(dp(62), ViewGroup.LayoutParams.MATCH_PARENT))
         return card
@@ -391,21 +457,28 @@ class LeoMainActivity : AppCompatActivity() {
         LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(13), dp(16), dp(13))
-            background = rounded(SURFACE_2.toInt(), dp(20).toFloat(), Color.TRANSPARENT)
+            setPadding(dp(15), dp(13), dp(15), dp(13))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.rgb(19, 27, 38), Color.rgb(12, 17, 25))
+            ).apply {
+                cornerRadius = dp(19).toFloat()
+                setStroke(dp(1), Color.rgb(36, 49, 67))
+            }
+            elevation = dp(1).toFloat()
             isClickable = true
             isFocusable = true
             setOnClickListener { action() }
             addView(TextView(this@LeoMainActivity).apply {
                 text = title
-                textSize = 11f
-                letterSpacing = 0.10f
+                textSize = 10f
+                letterSpacing = 0.11f
                 setTextColor(ACCENT.toInt())
                 setTypeface(typeface, Typeface.BOLD)
             })
             addView(TextView(this@LeoMainActivity).apply {
                 text = subtitle
-                textSize = 11f
+                textSize = 11.5f
                 setTextColor(TEXT.toInt())
                 setPadding(0, dp(4), 0, 0)
             })
