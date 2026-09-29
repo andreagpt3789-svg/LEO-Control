@@ -37,37 +37,46 @@ class LeoFireClient(private val context: Context) {
     }
 
     fun connectOrDiscover(): Result<String> {
-        val saved = savedIp()
-        if (saved.isNotBlank()) {
-            val test = connect(saved)
-            if (test.isSuccess) return test
-        }
+        return try {
+            val saved = savedIp()
+            if (saved.isNotBlank()) {
+                val test = connect(saved)
+                if (test.isSuccess) return test
+            }
 
-        val candidates = discoverPort5555()
-        for (ip in candidates) {
-            val result = connect(ip)
-            if (result.isSuccess) {
-                setIp(ip)
-                val reconnect = connect(ip)
-                if (reconnect.isSuccess) return reconnect
-            } else {
-                // Save a reachable ADB endpoint even if the Fire TV still needs
-                // the one-time RSA confirmation on screen.
-                if (portOpen(ip, ADB_PORT, 250)) {
-                    prefs.edit().putString(KEY_FIRE_IP, ip).apply()
-                    return Result.failure(
-                        IllegalStateException(
-                            "Fire TV trovata a $ip. Conferma 'Consenti debugging' sulla TV, poi riprova."
+            val candidates = discoverPort5555()
+            for (ip in candidates) {
+                val result = connect(ip)
+                if (result.isSuccess) {
+                    setIp(ip)
+                    val reconnect = connect(ip)
+                    if (reconnect.isSuccess) return reconnect
+                } else {
+                    // Save a reachable ADB endpoint even if the Fire TV still needs
+                    // the one-time RSA confirmation on screen.
+                    if (portOpen(ip, ADB_PORT, 250)) {
+                        prefs.edit().putString(KEY_FIRE_IP, ip).apply()
+                        return Result.failure(
+                            IllegalStateException(
+                                "Fire TV trovata a $ip. Conferma 'Consenti debugging' sulla TV, poi riprova."
+                            )
                         )
-                    )
+                    }
                 }
             }
-        }
-        return Result.failure(
-            IllegalStateException(
-                "Fire TV non trovata. Verifica che Debug ADB sia attivo e che telefono e Fire TV siano sulla stessa rete."
+            Result.failure(
+                IllegalStateException(
+                    "Fire TV non trovata. Verifica che Debug ADB sia attivo e che telefono e Fire TV siano sulla stessa rete."
+                )
             )
-        )
+        } catch (t: Throwable) {
+            Result.failure(
+                IllegalStateException(
+                    "Errore durante la connessione Fire TV: " + (t.message ?: t.javaClass.simpleName),
+                    t
+                )
+            )
+        }
     }
 
     @Synchronized
@@ -141,6 +150,9 @@ class LeoFireClient(private val context: Context) {
 
     private fun keyPair(): AdbKeyPair {
         val dir = File(context.filesDir, "fire_adb")
+        if (!dir.exists() && !dir.mkdirs()) {
+            error("Impossibile creare la cartella chiavi ADB")
+        }
         val privateKey = File(dir, "adbkey")
         val publicKey = File(dir, "adbkey.pub")
         if (!privateKey.exists() || !publicKey.exists()) {
@@ -151,7 +163,7 @@ class LeoFireClient(private val context: Context) {
 
     private fun discoverPort5555(): List<String> {
         val base = localSubnetBase() ?: return emptyList()
-        val pool = Executors.newFixedThreadPool(36)
+        val pool = Executors.newFixedThreadPool(24)
         return try {
             val tasks = (1..254).map { host ->
                 Callable {
