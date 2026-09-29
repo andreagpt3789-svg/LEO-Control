@@ -6,6 +6,9 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.net.DatagramPacket
+import java.net.DatagramSocket
+import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 
 class LeoHubClient(private val context: Context) {
@@ -13,6 +16,7 @@ class LeoHubClient(private val context: Context) {
         private const val PREFS = "leo_hub_native"
         private const val KEY_HUB_URL = "hub_url"
         private const val KEY_COOKIE = "session_cookie"
+        private const val KEY_PC_MAC = "pc_mac"
         private const val DEFAULT_HUB_URL = "http://192.168.31.75:8765"
         private val JSON = "application/json; charset=utf-8".toMediaType()
     }
@@ -39,6 +43,13 @@ class LeoHubClient(private val context: Context) {
 
     fun savedCookie(): String = prefs.getString(KEY_COOKIE, "").orEmpty()
 
+    fun savedPcMac(): String = prefs.getString(KEY_PC_MAC, "").orEmpty()
+
+    fun setPcMac(value: String) {
+        val normalized = value.trim().replace("-", ":").uppercase()
+        prefs.edit().putString(KEY_PC_MAC, normalized).apply()
+    }
+
     private fun request(path: String): Request.Builder {
         val b = Request.Builder().url(hubUrl() + path)
         val cookie = savedCookie()
@@ -54,7 +65,10 @@ class LeoHubClient(private val context: Context) {
             override fun onResponse(call: Call, response: Response) {
                 response.use {
                     val text = it.body?.string().orEmpty()
-                    val paired = runCatching { JSONObject(text).optBoolean("paired", false) }.getOrDefault(false)
+                    val json = runCatching { JSONObject(text) }.getOrNull()
+                    val paired = json?.optBoolean("paired", false) ?: false
+                    val mac = json?.optString("mac").orEmpty()
+                    if (it.isSuccessful && mac.isNotBlank()) setPcMac(mac)
                     callback(it.isSuccessful, paired, text)
                 }
             }
@@ -131,6 +145,48 @@ class LeoHubClient(private val context: Context) {
                 }
             }
         })
+    }
+
+    fun wakePc(callback: (Boolean, String) -> Unit) {
+        val macText = savedPcMac()
+        Thread {
+            val result = runCatching {
+                val parts = macText.split(":")
+                require(parts.size == 6) { "MAC PC non configurato" }
+                val mac = parts.map { it.toInt(16).toByte() }.toByteArray()
+                val payload = ByteArray(6 + 16 * mac.size)
+                for (i in 0 until 6) payload[i] = 0xFF.toByte()
+                for (i in 0 until 16) {
+                    System.arraycopy(mac, 0, payload, 6 + i * mac.size, mac.size)
+                }
+
+                val targets = linkedSetOf("255.255.255.255")
+                val host = Regex("""https?://([^/:]+)""")
+                    .find(hubUrl())?.groupValues?.getOrNull(1).orEmpty()
+                val octets = host.split(".")
+                if (octets.size == 4 && octets.all { it.toIntOrNull() in 0..255 }) {
+                    targets += octets.take(3).joinToString(".") + ".255"
+                }
+
+                DatagramSocket().use { socket ->
+                    socket.broadcast = true
+                    for (target in targets) {
+                        val packet = DatagramPacket(
+                            payload,
+                            payload.size,
+                            InetAddress.getByName(target),
+                            9
+                        )
+                        repeat(3) { socket.send(packet) }
+                    }
+                }
+                "Pacchetto Wake-on-LAN inviato"
+            }
+            callback(result.isSuccess, result.getOrElse { it.message ?: "Wake-on-LAN non riuscito" })
+        }.apply {
+            name = "LEO-WakeOnLan"
+            isDaemon = true
+        }.start()
     }
 
     fun webSocket(path: String, listener: WebSocketListener): WebSocket {
