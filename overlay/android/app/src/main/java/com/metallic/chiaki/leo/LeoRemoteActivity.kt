@@ -490,17 +490,16 @@ class LeoRemoteActivity : AppCompatActivity() {
             background = gradientPanel(accent)
             elevation = dp(2).toFloat()
 
-            addView(TextView(this@LeoRemoteActivity).apply {
-                this.text = when (device) {
-                    DEVICE_TV -> "TV"
-                    DEVICE_FIRE -> "FT"
-                    else -> "PC"
+            addView(ImageView(this@LeoRemoteActivity).apply {
+                val iconName = when (device) {
+                    DEVICE_TV -> "tv"
+                    DEVICE_FIRE -> "fire"
+                    else -> "pc"
                 }
-                gravity = Gravity.CENTER
-                textSize = 12f
-                setTypeface(typeface, Typeface.BOLD)
-                setTextColor(Color.rgb(5, 12, 18))
+                setImageDrawable(LeoIconDrawable(iconName, Color.rgb(5, 12, 18)))
+                setPadding(dp(11), dp(11), dp(11), dp(11))
                 background = rounded(accent, dp(16).toFloat(), Color.TRANSPARENT)
+                contentDescription = title
             }, LinearLayout.LayoutParams(dp(48), dp(48)))
 
             val copy = LinearLayout(this@LeoRemoteActivity).apply {
@@ -954,9 +953,25 @@ class LeoRemoteActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(2), dp(24), dp(2), dp(9))
 
-            addView(View(this@LeoRemoteActivity).apply {
-                background = rounded(deviceAccent(), dp(2).toFloat(), Color.TRANSPARENT)
-            }, LinearLayout.LayoutParams(dp(3), dp(34)).apply {
+            val sectionIcon = when (title) {
+                "TOUCHPAD" -> "mouse"
+                "TASTIERA", "TESTO" -> "keyboard"
+                "NAVIGAZIONE" -> "menu"
+                "APP E INGRESSI" -> "apps"
+                "GESTI" -> "mouse"
+                else -> "apps"
+            }
+            addView(ImageView(this@LeoRemoteActivity).apply {
+                setImageDrawable(LeoIconDrawable(sectionIcon, deviceAccent()))
+                setPadding(dp(7), dp(7), dp(7), dp(7))
+                background = rounded(Color.rgb(17, 26, 38), dp(11).toFloat(), Color.argb(
+                    72,
+                    Color.red(deviceAccent()),
+                    Color.green(deviceAccent()),
+                    Color.blue(deviceAccent())
+                ))
+                contentDescription = title
+            }, LinearLayout.LayoutParams(dp(34), dp(34)).apply {
                 setMargins(0, 0, dp(10), 0)
             })
 
