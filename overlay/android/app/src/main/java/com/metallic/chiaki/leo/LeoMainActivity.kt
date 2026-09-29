@@ -110,6 +110,12 @@ class LeoMainActivity : AppCompatActivity() {
         }
         scroll.addView(body)
 
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+            val system = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            body.setPadding(dp(20), system.top + dp(8), dp(20), system.bottom + dp(28))
+            insets
+        }
+
         body.addView(header())
         body.addView(heroCard(), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -184,6 +190,7 @@ class LeoMainActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         ))
         setContentView(root)
+        androidx.core.view.ViewCompat.requestApplyInsets(root)
     }
 
     private fun header(): View {
