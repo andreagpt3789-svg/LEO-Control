@@ -159,8 +159,9 @@ class LeoVidaaClient(private val context: Context) {
                     payload
                 )
                 val generation = pairingGeneration
+                requestInitialToken()
                 scheduleTokenRecovery(generation)
-                PairingResult(true, "PIN inviato. Attendo conferma dalla TV…")
+                PairingResult(true, "PIN inviato. Attendo il token di associazione dalla TV…")
             }.getOrElse { PairingResult(false, it.message ?: "PIN non inviato") }
             callback(result)
         }.start()
@@ -228,16 +229,49 @@ class LeoVidaaClient(private val context: Context) {
     private fun subscribePairingTopics() {
         val c = client ?: return
         if (!c.isConnected || currentClientId.isBlank()) return
+        val base = "/remoteapp/mobile/" + currentClientId
         val topics = arrayOf(
-            "/remoteapp/mobile/" + currentClientId + "/ui_service/data/authentication",
-            "/remoteapp/mobile/" + currentClientId + "/ui_service/data/authenticationcode",
-            "/remoteapp/mobile/" + currentClientId + "/platform_service/data/tokenissuance"
+            base + "/ui_service/data/authentication",
+            base + "/ui_service/data/authenticationcode",
+            base + "/ui_service/data/authenticationcodetoast",
+            base + "/ui_service/data/authenticationcodeclose",
+            base + "/ui_service/data/tokenissuance",
+            base + "/platform_service/data/tokenissuance"
         )
         topics.forEach { runCatching { c.subscribe(it, 0) } }
     }
 
     private fun handleMessage(topic: String, body: String) {
         val json = parseVidaaJson(body)
+
+        if (topic.contains("tokenissuance") && json != null) {
+            val nested = json.optJSONObject("data")
+            val access = json.optString("accesstoken").ifBlank {
+                nested?.optString("accesstoken").orEmpty()
+            }.ifBlank {
+                json.optString("access_token")
+            }
+            val refresh = json.optString("refreshtoken").ifBlank {
+                nested?.optString("refreshtoken").orEmpty()
+            }.ifBlank {
+                json.optString("refresh_token")
+            }
+
+            if (access.isNotBlank()) {
+                pairingCompleted = true
+                prefs.edit()
+                    .putString(KEY_CLIENT_ID, currentClientId)
+                    .putString(KEY_USERNAME, currentUsername)
+                    .putString(KEY_ACCESS, access)
+                    .putString(KEY_REFRESH, refresh)
+                    .apply()
+                pendingPairCallback?.invoke(
+                    PairingResult(true, "Hisense associata direttamente a LEO Control.")
+                )
+                pendingPairCallback = null
+            }
+            return
+        }
 
         if (topic.contains("authentication")) {
             val result = json?.opt("result")
@@ -326,7 +360,7 @@ class LeoVidaaClient(private val context: Context) {
                 pendingPairCallback?.invoke(
                     PairingResult(
                         false,
-                        "La TV ha ricevuto il PIN ma non ha rilasciato il token. Riprova il pairing senza chiudere questa schermata."
+                        "PIN ricevuto, ma LEO non ha ancora ricevuto il token VIDAA. Riprova una volta: la correzione ascolta entrambi i canali token usati dai firmware Hisense."
                     )
                 )
             }
