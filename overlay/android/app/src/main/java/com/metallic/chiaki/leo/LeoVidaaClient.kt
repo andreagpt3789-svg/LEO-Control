@@ -56,6 +56,8 @@ class LeoVidaaClient(private val context: Context) {
     private var currentClientId: String = ""
     private var currentUsername: String = ""
     private var pendingPairCallback: ((PairingResult) -> Unit)? = null
+    @Volatile private var pairingGeneration: Int = 0
+    @Volatile private var pairingCompleted: Boolean = false
 
     fun savedIp(): String = prefs.getString(KEY_TV_IP, DEFAULT_TV_IP).orEmpty()
 
@@ -115,6 +117,8 @@ class LeoVidaaClient(private val context: Context) {
         Thread {
             val result = runCatching {
                 disconnect()
+                pairingGeneration += 1
+                pairingCompleted = false
                 val connected = connectForPairing()
                 if (!connected) {
                     error(
@@ -154,6 +158,8 @@ class LeoVidaaClient(private val context: Context) {
                     "/remoteapp/tv/ui_service/" + currentClientId + "/actions/authenticationcode",
                     payload
                 )
+                val generation = pairingGeneration
+                scheduleTokenRecovery(generation)
                 PairingResult(true, "PIN inviato. Attendo conferma dalla TV…")
             }.getOrElse { PairingResult(false, it.message ?: "PIN non inviato") }
             callback(result)
@@ -231,28 +237,39 @@ class LeoVidaaClient(private val context: Context) {
     }
 
     private fun handleMessage(topic: String, body: String) {
-        val json = runCatching { JSONObject(body) }.getOrNull()
+        val json = parseVidaaJson(body)
 
-        if (topic.contains("authenticationcode") || topic.endsWith("/authentication")) {
-            val accepted = json?.optInt("result", 0) == 1
+        if (topic.contains("authentication")) {
+            val result = json?.opt("result")
+            val accepted =
+                result == 1 ||
+                result == 1L ||
+                result?.toString() == "1" ||
+                json?.optBoolean("success", false) == true
+
             if (accepted) {
-                runCatching {
-                    publish(
-                        "/remoteapp/tv/platform_service/" + currentClientId + "/data/gettoken",
-                        JSONObject().put("refreshtoken", "").toString()
-                    )
-                    publish(
-                        "/remoteapp/tv/ui_service/" + currentClientId + "/actions/authenticationcodeclose",
-                        ""
-                    )
-                }
+                pendingPairCallback?.invoke(
+                    PairingResult(true, "PIN accettato dalla TV. Completo l'associazione…")
+                )
+                requestInitialToken()
             }
         }
 
         if (topic.contains("tokenissuance") && json != null) {
-            val access = json.optString("accesstoken")
-            val refresh = json.optString("refreshtoken")
+            val nested = json.optJSONObject("data")
+            val access = json.optString("accesstoken").ifBlank {
+                nested?.optString("accesstoken").orEmpty()
+            }.ifBlank {
+                json.optString("access_token")
+            }
+            val refresh = json.optString("refreshtoken").ifBlank {
+                nested?.optString("refreshtoken").orEmpty()
+            }.ifBlank {
+                json.optString("refresh_token")
+            }
+
             if (access.isNotBlank()) {
+                pairingCompleted = true
                 prefs.edit()
                     .putString(KEY_CLIENT_ID, currentClientId)
                     .putString(KEY_USERNAME, currentUsername)
@@ -265,6 +282,55 @@ class LeoVidaaClient(private val context: Context) {
                 pendingPairCallback = null
             }
         }
+    }
+
+    private fun parseVidaaJson(body: String): JSONObject? {
+        return runCatching { JSONObject(body) }.getOrElse {
+            runCatching {
+                val outer = org.json.JSONTokener(body).nextValue()
+                when (outer) {
+                    is JSONObject -> outer
+                    is String -> JSONObject(outer)
+                    else -> null
+                }
+            }.getOrNull()
+        }
+    }
+
+    private fun requestInitialToken() {
+        runCatching {
+            publish(
+                "/remoteapp/tv/platform_service/" + currentClientId + "/data/gettoken",
+                JSONObject().put("refreshtoken", "").toString()
+            )
+            publish(
+                "/remoteapp/tv/ui_service/" + currentClientId + "/actions/authenticationcodeclose",
+                ""
+            )
+        }
+    }
+
+    private fun scheduleTokenRecovery(generation: Int) {
+        Thread {
+            val delays = longArrayOf(700L, 1400L, 2600L, 4200L)
+            for (delay in delays) {
+                try {
+                    Thread.sleep(delay)
+                } catch (_: InterruptedException) {
+                    return@Thread
+                }
+                if (generation != pairingGeneration || pairingCompleted) return@Thread
+                if (client?.isConnected == true) requestInitialToken()
+            }
+            if (generation == pairingGeneration && !pairingCompleted) {
+                pendingPairCallback?.invoke(
+                    PairingResult(
+                        false,
+                        "La TV ha ricevuto il PIN ma non ha rilasciato il token. Riprova il pairing senza chiudere questa schermata."
+                    )
+                )
+            }
+        }.start()
     }
 
     private fun publish(topic: String, value: String) {
