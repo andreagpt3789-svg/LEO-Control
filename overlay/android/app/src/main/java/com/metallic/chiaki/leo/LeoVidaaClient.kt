@@ -8,7 +8,9 @@ import org.eclipse.paho.client.mqttv3.MqttClient
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions
 import org.eclipse.paho.client.mqttv3.MqttMessage
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
+import org.json.JSONArray
 import org.json.JSONObject
+import org.json.JSONTokener
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.net.HttpURLConnection
@@ -52,9 +54,11 @@ class LeoVidaaClient(private val context: Context) {
     enum class AuthMode { MODERN, MIDDLE, LEGACY, STATIC }
 
     data class PairingResult(val ok: Boolean, val message: String)
+    data class VidaaSource(val id: String, val name: String, val displayName: String)
     private data class TvPairingInfo(val timestamp: Long?, val transportProtocol: Int?)
 
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val sessionBackup = context.getSharedPreferences("leo_vidaa_session_backup", Context.MODE_PRIVATE)
     private var client: MqttClient? = null
     private var currentClientId: String = ""
     private var currentUsername: String = ""
@@ -64,6 +68,12 @@ class LeoVidaaClient(private val context: Context) {
     @Volatile private var pinSubmitted: Boolean = false
     @Volatile private var tokenExchangeStarted: Boolean = false
     private val pairingTrace = mutableListOf<String>()
+    @Volatile private var pendingSourcesCallback: ((List<VidaaSource>) -> Unit)? = null
+
+    init {
+        restoreSessionBackupIfNeeded()
+        backupCurrentSessionIfValid()
+    }
 
     fun savedIp(): String = prefs.getString(KEY_TV_IP, DEFAULT_TV_IP).orEmpty()
 
@@ -72,10 +82,59 @@ class LeoVidaaClient(private val context: Context) {
         disconnect()
     }
 
-    fun isPaired(): Boolean =
-        prefs.getString(KEY_ACCESS, "").orEmpty().isNotBlank() &&
+    fun isPaired(): Boolean {
+        restoreSessionBackupIfNeeded()
+        return prefs.getString(KEY_ACCESS, "").orEmpty().isNotBlank() &&
             prefs.getString(KEY_CLIENT_ID, "").orEmpty().isNotBlank() &&
             prefs.getString(KEY_USERNAME, "").orEmpty().isNotBlank()
+    }
+
+    private fun backupCurrentSessionIfValid() {
+        val clientId = prefs.getString(KEY_CLIENT_ID, "").orEmpty()
+        val username = prefs.getString(KEY_USERNAME, "").orEmpty()
+        val access = prefs.getString(KEY_ACCESS, "").orEmpty()
+        if (clientId.isBlank() || username.isBlank() || access.isBlank()) return
+        sessionBackup.edit()
+            .putString(KEY_TV_IP, prefs.getString(KEY_TV_IP, DEFAULT_TV_IP).orEmpty())
+            .putString(KEY_UUID, prefs.getString(KEY_UUID, "").orEmpty())
+            .putString(KEY_CLIENT_ID, clientId)
+            .putString(KEY_USERNAME, username)
+            .putString(KEY_ACCESS, access)
+            .putString(KEY_REFRESH, prefs.getString(KEY_REFRESH, "").orEmpty())
+            .apply()
+    }
+
+    private fun restoreSessionBackupIfNeeded() {
+        val hasPrimary =
+            prefs.getString(KEY_ACCESS, "").orEmpty().isNotBlank() &&
+                prefs.getString(KEY_CLIENT_ID, "").orEmpty().isNotBlank() &&
+                prefs.getString(KEY_USERNAME, "").orEmpty().isNotBlank()
+        if (hasPrimary) return
+
+        val access = sessionBackup.getString(KEY_ACCESS, "").orEmpty()
+        val clientId = sessionBackup.getString(KEY_CLIENT_ID, "").orEmpty()
+        val username = sessionBackup.getString(KEY_USERNAME, "").orEmpty()
+        if (access.isBlank() || clientId.isBlank() || username.isBlank()) return
+
+        prefs.edit()
+            .putString(KEY_TV_IP, sessionBackup.getString(KEY_TV_IP, DEFAULT_TV_IP).orEmpty())
+            .putString(KEY_UUID, sessionBackup.getString(KEY_UUID, "").orEmpty())
+            .putString(KEY_CLIENT_ID, clientId)
+            .putString(KEY_USERNAME, username)
+            .putString(KEY_ACCESS, access)
+            .putString(KEY_REFRESH, sessionBackup.getString(KEY_REFRESH, "").orEmpty())
+            .apply()
+    }
+
+    private fun saveSession(clientId: String, username: String, access: String, refresh: String) {
+        prefs.edit()
+            .putString(KEY_CLIENT_ID, clientId)
+            .putString(KEY_USERNAME, username)
+            .putString(KEY_ACCESS, access)
+            .putString(KEY_REFRESH, refresh)
+            .apply()
+        backupCurrentSessionIfValid()
+    }
 
     fun isReachable(): Boolean {
         val ip = savedIp()
@@ -95,11 +154,55 @@ class LeoVidaaClient(private val context: Context) {
         publish("/remoteapp/tv/remote_service/" + currentClientId + "/actions/sendkey", key)
     }
 
-    fun setSource(sourceId: String): Result<Unit> = runCatching {
+    fun requestSources(callback: (List<VidaaSource>) -> Unit) {
+        Thread {
+            val result = runCatching {
+                ensureConnected()
+                pendingSourcesCallback = callback
+                val responseTopic =
+                    "/remoteapp/mobile/" + currentClientId + "/ui_service/data/sourcelist"
+                runCatching { client?.subscribe(responseTopic, 0) }
+                publish(
+                    "/remoteapp/tv/ui_service/" + currentClientId + "/actions/sourcelist",
+                    "0"
+                )
+            }
+            if (result.isFailure) {
+                pendingSourcesCallback = null
+                callback(emptyList())
+            } else {
+                Thread {
+                    try {
+                        Thread.sleep(1800L)
+                    } catch (_: InterruptedException) {
+                        return@Thread
+                    }
+                    val pending = pendingSourcesCallback
+                    if (pending != null) {
+                        pendingSourcesCallback = null
+                        pending(emptyList())
+                    }
+                }.apply {
+                    name = "LEO-VIDAA-SourcesTimeout"
+                    isDaemon = true
+                }.start()
+            }
+        }.apply {
+            name = "LEO-VIDAA-Sources"
+            isDaemon = true
+        }.start()
+    }
+
+
+    fun setSource(sourceId: String, sourceName: String? = null): Result<Unit> = runCatching {
         ensureConnected()
+        val payload = JSONObject().put("sourceid", sourceId)
+        if (!sourceName.isNullOrBlank()) {
+            payload.put("sourcename", sourceName.replace(" ", ""))
+        }
         publish(
             "/remoteapp/tv/ui_service/" + currentClientId + "/actions/changesource",
-            JSONObject().put("sourceid", sourceId).toString()
+            payload.toString()
         )
     }
 
@@ -213,6 +316,7 @@ class LeoVidaaClient(private val context: Context) {
     }
 
     private fun ensureConnected() {
+        restoreSessionBackupIfNeeded()
         val existing = client
         if (existing != null && existing.isConnected) return
 
@@ -352,6 +456,16 @@ class LeoVidaaClient(private val context: Context) {
 
     private fun handleMessage(topic: String, body: String) {
         tracePairing(topic, body)
+
+        if (topic.endsWith("/ui_service/data/sourcelist", ignoreCase = true)) {
+            val sources = parseSourceList(body)
+            if (sources.isNotEmpty()) {
+                val callback = pendingSourcesCallback
+                pendingSourcesCallback = null
+                callback?.invoke(sources)
+            }
+        }
+
         val json = parseVidaaJson(body)
 
         if (json != null) {
@@ -370,12 +484,7 @@ class LeoVidaaClient(private val context: Context) {
             if (access.isNotBlank()) {
                 pairingCompleted = true
                 pinSubmitted = false
-                prefs.edit()
-                    .putString(KEY_CLIENT_ID, currentClientId)
-                    .putString(KEY_USERNAME, currentUsername)
-                    .putString(KEY_ACCESS, access)
-                    .putString(KEY_REFRESH, refresh)
-                    .apply()
+                saveSession(currentClientId, currentUsername, access, refresh)
                 pendingPairCallback?.invoke(
                     PairingResult(true, "Hisense associata direttamente a LEO Control.")
                 )
@@ -405,6 +514,38 @@ class LeoVidaaClient(private val context: Context) {
                 scheduleTokenRecovery(pairingGeneration)
             }
         }
+    }
+
+    private fun parseSourceList(body: String): List<VidaaSource> {
+        return runCatching {
+            val value = JSONTokener(body.trim()).nextValue()
+            val array = when (value) {
+                is JSONArray -> value
+                is JSONObject -> {
+                    value.optJSONArray("sources")
+                        ?: value.optJSONArray("sourceList")
+                        ?: value.optJSONArray("sourcelist")
+                        ?: JSONArray()
+                }
+                else -> JSONArray()
+            }
+
+            val out = mutableListOf<VidaaSource>()
+            for (i in 0 until array.length()) {
+                val item = array.optJSONObject(i) ?: continue
+                val id = item.optString("sourceid").trim()
+                val name = item.optString("sourcename").trim()
+                val display = item.optString("displayname").trim().ifBlank { name }
+                if (id.isNotBlank()) {
+                    out += VidaaSource(
+                        id = id,
+                        name = name.ifBlank { display.ifBlank { "Source $id" } },
+                        displayName = display.ifBlank { name.ifBlank { "Source $id" } }
+                    )
+                }
+            }
+            out
+        }.getOrDefault(emptyList())
     }
 
     private fun findJsonStringDeep(
