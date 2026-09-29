@@ -73,7 +73,7 @@ class LeoRemoteActivity : AppCompatActivity() {
                     showVidaaPairingIntro()
                 }
             }
-            DEVICE_FIRE -> ensureFireConnected()
+            DEVICE_FIRE -> setStatus("PRONTO", MUTED.toInt())
         }
     }
 
@@ -277,25 +277,25 @@ class LeoRemoteActivity : AppCompatActivity() {
 
         body.addView(section("NAVIGAZIONE", "Comandi principali"))
         body.addView(commandRow(
-            "⏻  Power" to { cmd("power") },
-            "Sorgente" to { cmd("source") },
-            "⌂  Home" to { cmd("home") }
+            "POWER" to { cmd("power") },
+            "SOURCE" to { cmd("source") },
+            "HOME" to { cmd("home") }
         ))
         body.addView(remoteDpad())
         body.addView(commandRow(
-            "‹  Indietro" to { cmd("back") },
-            "Menu" to { cmd("menu") },
-            "Esci" to { cmd("exit") }
+            "BACK" to { cmd("back") },
+            "MENU" to { cmd("menu") },
+            "EXIT" to { cmd("exit") }
         ))
         body.addView(commandRow(
-            "−  Vol" to { cmd("volume_down") },
-            "Mute" to { cmd("mute") },
-            "+  Vol" to { cmd("volume_up") }
+            "VOL -" to { cmd("volume_down") },
+            "MUTE" to { cmd("mute") },
+            "VOL +" to { cmd("volume_up") }
         ))
         body.addView(commandRow(
-            "−  CH" to { cmd("channel_down") },
-            "▶︎  Play" to { cmd("play") },
-            "+  CH" to { cmd("channel_up") }
+            "CH -" to { cmd("channel_down") },
+            "PLAY" to { cmd("play") },
+            "CH +" to { cmd("channel_up") }
         ))
 
         body.addView(section("APP E INGRESSI", "Accesso diretto"))
@@ -317,15 +317,15 @@ class LeoRemoteActivity : AppCompatActivity() {
 
         body.addView(section("NAVIGAZIONE", "Comandi principali"))
         body.addView(commandRow(
-            "⏻  Power" to { cmd("power") },
-            "⌂  Home" to { cmd("home") },
-            "Menu" to { cmd("menu") }
+            "POWER" to { cmd("power") },
+            "HOME" to { cmd("home") },
+            "MENU" to { cmd("menu") }
         ))
         body.addView(remoteDpad())
         body.addView(commandRow(
-            "‹  Indietro" to { cmd("back") },
-            "▶︎  Play" to { cmd("play_pause") },
-            "⌕  Cerca" to { cmd("search") }
+            "BACK" to { cmd("back") },
+            "PLAY" to { cmd("play_pause") },
+            "SEARCH" to { cmd("search") }
         ))
         body.addView(commandRow(
             "−  Vol" to { cmd("volume_down") },
@@ -559,28 +559,36 @@ class LeoRemoteActivity : AppCompatActivity() {
 
     private fun ensureFireConnected(after: (() -> Unit)? = null) {
         if (fireConnecting || isFinishing || isDestroyed) return
+
+        val target = fire?.savedIp().orEmpty().trim()
+        if (target.isBlank()) {
+            showFireIpDialog(after)
+            return
+        }
+
         fireConnecting = true
-        setStatus("● cerco Fire TV…", MUTED.toInt())
+        setStatus("CONNESSIONE", MUTED.toInt())
         Thread {
             val result = runCatching {
-                fire?.connectOrDiscover()?.getOrThrow()
+                fire?.connectSaved()?.getOrThrow()
                     ?: error("Fire TV non disponibile")
             }
             runOnUiThread {
                 fireConnecting = false
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (result.isSuccess) {
-                    setStatus("● diretto", GREEN.toInt())
+                    setStatus("DIRETTO", GREEN.toInt())
                     after?.invoke()
                 } else {
-                    setStatus("● errore ADB", ORANGE.toInt())
+                    setStatus("ADB OFFLINE", ORANGE.toInt())
                     AlertDialog.Builder(this)
-                        .setTitle("Collega Fire TV")
+                        .setTitle("Fire TV non collegata")
                         .setMessage(
-                            result.exceptionOrNull()?.message
-                                ?: "Attiva Debug ADB sulla Fire TV e autorizza questo telefono."
+                            (result.exceptionOrNull()?.message ?: "Connessione ADB non riuscita") +
+                                "\n\nVerifica Debug ADB sulla Fire TV e l'IP salvato."
                         )
                         .setPositiveButton("Riprova") { _, _ -> ensureFireConnected(after) }
+                        .setNeutralButton("Cambia IP") { _, _ -> showFireIpDialog(after) }
                         .setNegativeButton("Chiudi", null)
                         .show()
                 }
@@ -589,6 +597,28 @@ class LeoRemoteActivity : AppCompatActivity() {
             name = "LEO-FireTV-Connect"
             isDaemon = true
         }.start()
+    }
+
+    private fun showFireIpDialog(after: (() -> Unit)? = null) {
+        if (isFinishing || isDestroyed) return
+        val input = EditText(this).apply {
+            hint = "192.168.1.50"
+            setText(fire?.savedIp().orEmpty())
+            inputType = InputType.TYPE_CLASS_PHONE
+        }
+        AlertDialog.Builder(this)
+            .setTitle("IP Fire TV")
+            .setMessage("Inseriscilo una volta: LEO lo salva e poi si collega automaticamente ai comandi.")
+            .setView(input)
+            .setPositiveButton("Salva e collega") { _, _ ->
+                val value = input.text.toString().trim()
+                if (value.isNotBlank()) {
+                    fire?.setIp(value)
+                    ensureFireConnected(after)
+                }
+            }
+            .setNegativeButton("Annulla", null)
+            .show()
     }
 
     private fun showVidaaPairingIntro() {
