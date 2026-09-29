@@ -58,6 +58,8 @@ class LeoVidaaClient(private val context: Context) {
     private var pendingPairCallback: ((PairingResult) -> Unit)? = null
     @Volatile private var pairingGeneration: Int = 0
     @Volatile private var pairingCompleted: Boolean = false
+    @Volatile private var pinSubmitted: Boolean = false
+    private val pairingTrace = mutableListOf<String>()
 
     fun savedIp(): String = prefs.getString(KEY_TV_IP, DEFAULT_TV_IP).orEmpty()
 
@@ -119,6 +121,8 @@ class LeoVidaaClient(private val context: Context) {
                 disconnect()
                 pairingGeneration += 1
                 pairingCompleted = false
+                pinSubmitted = false
+                synchronized(pairingTrace) { pairingTrace.clear() }
                 val connected = connectForPairing()
                 if (!connected) {
                     error(
@@ -152,6 +156,7 @@ class LeoVidaaClient(private val context: Context) {
                 val c = client
                 if (c == null || !c.isConnected) error("Connessione VIDAA scaduta. Riavvia il pairing.")
                 pendingPairCallback = callback
+                pinSubmitted = true
                 val value = pin.trim().toIntOrNull() ?: error("PIN non valido")
                 val payload = JSONObject().put("authNum", value).toString()
                 publish(
@@ -234,7 +239,9 @@ class LeoVidaaClient(private val context: Context) {
             base + "/ui_service/data/authenticationcode",
             base + "/ui_service/data/authenticationcodetoast",
             base + "/ui_service/data/authenticationcodeclose",
+            base + "/ui_service/data/vidaa_app_connect",
             base + "/ui_service/data/tokenissuance",
+            base + "/ui_service/data/gettoken",
             base + "/platform_service/data/tokenissuance",
             base + "/platform_service/data/gettoken"
         )
@@ -242,26 +249,27 @@ class LeoVidaaClient(private val context: Context) {
     }
 
     private fun handleMessage(topic: String, body: String) {
+        tracePairing(topic, body)
         val json = parseVidaaJson(body)
 
-        // VIDAA firmware families use either ui_service or platform_service
-        // for tokenissuance. Handle token messages first so they can never be
-        // swallowed by another pairing branch.
-        if ((topic.contains("tokenissuance") || topic.endsWith("/platform_service/data/gettoken")) && json != null) {
-            val nested = json.optJSONObject("data")
-            val access = json.optString("accesstoken").ifBlank {
-                nested?.optString("accesstoken").orEmpty()
-            }.ifBlank {
-                json.optString("access_token")
-            }
-            val refresh = json.optString("refreshtoken").ifBlank {
-                nested?.optString("refreshtoken").orEmpty()
-            }.ifBlank {
-                json.optString("refresh_token")
-            }
+        val tokenTopic =
+            topic.contains("tokenissuance", ignoreCase = true) ||
+                topic.endsWith("/platform_service/data/gettoken", ignoreCase = true) ||
+                topic.endsWith("/ui_service/data/gettoken", ignoreCase = true)
+
+        if (tokenTopic && json != null) {
+            val access = findJsonStringDeep(
+                json,
+                setOf("accesstoken", "access_token", "accessToken")
+            )
+            val refresh = findJsonStringDeep(
+                json,
+                setOf("refreshtoken", "refresh_token", "refreshToken")
+            )
 
             if (access.isNotBlank()) {
                 pairingCompleted = true
+                pinSubmitted = false
                 prefs.edit()
                     .putString(KEY_CLIENT_ID, currentClientId)
                     .putString(KEY_USERNAME, currentUsername)
@@ -272,17 +280,17 @@ class LeoVidaaClient(private val context: Context) {
                     PairingResult(true, "Hisense associata direttamente a LEO Control.")
                 )
                 pendingPairCallback = null
+                return
             }
-            return
         }
 
-        if (topic.contains("authentication")) {
-            val result = json?.opt("result")
+        if (pinSubmitted && topic.contains("authentication", ignoreCase = true)) {
+            val resultValue = findJsonStringDeep(json, setOf("result"))
+            val successValue = findJsonStringDeep(json, setOf("success"))
             val accepted =
-                result == 1 ||
-                result == 1L ||
-                result?.toString() == "1" ||
-                json?.optBoolean("success", false) == true
+                body.isBlank() ||
+                    resultValue == "1" ||
+                    successValue.equals("true", ignoreCase = true)
 
             if (accepted) {
                 pendingPairCallback?.invoke(
@@ -292,6 +300,80 @@ class LeoVidaaClient(private val context: Context) {
             }
         }
     }
+
+    private fun findJsonStringDeep(
+        value: Any?,
+        wantedKeys: Set<String>,
+        depth: Int = 0
+    ): String {
+        if (value == null || depth > 6) return ""
+        return when (value) {
+            is JSONObject -> {
+                val keys = value.keys().asSequence().toList()
+                for (key in keys) {
+                    if (wantedKeys.any { it.equals(key, ignoreCase = true) }) {
+                        val direct = value.opt(key)
+                        if (direct != null && direct != JSONObject.NULL) {
+                            val text = direct.toString()
+                            if (text.isNotBlank()) return text
+                        }
+                    }
+                }
+                for (key in keys) {
+                    val nested = findJsonStringDeep(value.opt(key), wantedKeys, depth + 1)
+                    if (nested.isNotBlank()) return nested
+                }
+                ""
+            }
+            is org.json.JSONArray -> {
+                for (i in 0 until value.length()) {
+                    val nested = findJsonStringDeep(value.opt(i), wantedKeys, depth + 1)
+                    if (nested.isNotBlank()) return nested
+                }
+                ""
+            }
+            is String -> {
+                val trimmed = value.trim()
+                if ((trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+                    (trimmed.startsWith("[") && trimmed.endsWith("]"))
+                ) {
+                    val nested = runCatching { org.json.JSONTokener(trimmed).nextValue() }.getOrNull()
+                    findJsonStringDeep(nested, wantedKeys, depth + 1)
+                } else ""
+            }
+            else -> ""
+        }
+    }
+
+    private fun tracePairing(topic: String, body: String) {
+        val shape = if (body.isBlank()) {
+            "<empty>"
+        } else {
+            val parsed = parseVidaaJson(body)
+            if (parsed == null) {
+                "text(" + body.length + ")"
+            } else {
+                parsed.keys().asSequence().toList().sorted().joinToString(
+                    prefix = "{",
+                    postfix = "}"
+                )
+            }
+        }
+        val compactTopic = if (currentClientId.isNotBlank()) {
+            topic.replace(currentClientId, "{client}")
+        } else {
+            topic
+        }
+        synchronized(pairingTrace) {
+            pairingTrace += compactTopic + " " + shape
+            while (pairingTrace.size > 24) pairingTrace.removeAt(0)
+        }
+    }
+
+    private fun pairingTraceSummary(): String =
+        synchronized(pairingTrace) {
+            pairingTrace.takeLast(8).joinToString("\n")
+        }
 
     private fun parseVidaaJson(body: String): JSONObject? {
         return runCatching { JSONObject(body) }.getOrElse {
@@ -321,7 +403,7 @@ class LeoVidaaClient(private val context: Context) {
 
     private fun scheduleTokenRecovery(generation: Int) {
         Thread {
-            val delays = longArrayOf(700L, 1400L, 2600L, 4200L)
+            val delays = longArrayOf(2500L, 3500L, 5000L, 7000L)
             for (delay in delays) {
                 try {
                     Thread.sleep(delay)
@@ -335,7 +417,7 @@ class LeoVidaaClient(private val context: Context) {
                 pendingPairCallback?.invoke(
                     PairingResult(
                         false,
-                        "PIN ricevuto, ma LEO non ha ancora ricevuto il token VIDAA. Riprova una volta: la correzione ascolta entrambi i canali token usati dai firmware Hisense."
+                        "La TV ha accettato il pairing, ma non è arrivato un token VIDAA utilizzabile.\n\nTrace pairing:\n" + pairingTraceSummary()
                     )
                 )
             }
