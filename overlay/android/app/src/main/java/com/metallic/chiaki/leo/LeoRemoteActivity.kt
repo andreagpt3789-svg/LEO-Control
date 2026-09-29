@@ -50,7 +50,7 @@ class LeoRemoteActivity : AppCompatActivity() {
     private var socket: WebSocket? = null
     private var vidaa: LeoVidaaClient? = null
     private var fire: LeoFireClient? = null
-    private var fireConnecting = false
+    @Volatile private var fireConnecting = false
     private var vidaaPairDialogVisible = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -547,18 +547,22 @@ class LeoRemoteActivity : AppCompatActivity() {
     }
 
     private fun ensureFireConnected(after: (() -> Unit)? = null) {
-        if (fireConnecting) return
+        if (fireConnecting || isFinishing || isDestroyed) return
         fireConnecting = true
         setStatus("● cerco Fire TV…", MUTED.toInt())
         Thread {
-            val result = fire?.connectOrDiscover() ?: Result.failure(IllegalStateException("Fire TV non disponibile"))
+            val result = runCatching {
+                fire?.connectOrDiscover()?.getOrThrow()
+                    ?: error("Fire TV non disponibile")
+            }
             runOnUiThread {
                 fireConnecting = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
                 if (result.isSuccess) {
                     setStatus("● diretto", GREEN.toInt())
                     after?.invoke()
                 } else {
-                    setStatus("● autorizza", ORANGE.toInt())
+                    setStatus("● errore ADB", ORANGE.toInt())
                     AlertDialog.Builder(this)
                         .setTitle("Collega Fire TV")
                         .setMessage(
@@ -570,6 +574,9 @@ class LeoRemoteActivity : AppCompatActivity() {
                         .show()
                 }
             }
+        }.apply {
+            name = "LEO-FireTV-Connect"
+            isDaemon = true
         }.start()
     }
 
