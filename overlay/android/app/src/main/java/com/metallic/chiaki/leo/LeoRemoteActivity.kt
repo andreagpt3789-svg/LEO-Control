@@ -93,7 +93,8 @@ class LeoRemoteActivity : AppCompatActivity() {
                 intArrayOf(Color.rgb(7, 11, 18), BG.toInt())
             )
         }
-        root.addView(topBar())
+        val bar = topBar()
+        root.addView(bar)
 
         val scroll = ScrollView(this).apply {
             isFillViewport = true
@@ -107,12 +108,20 @@ class LeoRemoteActivity : AppCompatActivity() {
         scroll.addView(body)
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+            val system = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            bar.setPadding(dp(14), system.top + dp(8), dp(16), dp(8))
+            body.setPadding(dp(18), dp(10), dp(18), system.bottom + dp(24))
+            insets
+        }
+
         when (device) {
             DEVICE_PC -> buildPc(body)
             DEVICE_TV -> buildTv(body)
             DEVICE_FIRE -> buildFire(body)
         }
         setContentView(root)
+        androidx.core.view.ViewCompat.requestApplyInsets(root)
     }
 
     private fun topBar(): View {
@@ -142,7 +151,7 @@ class LeoRemoteActivity : AppCompatActivity() {
                 DEVICE_FIRE -> "Fire TV"
                 else -> "PC Windows"
             }
-            textSize = 23f
+            textSize = 21f
             includeFontPadding = false
             setTextColor(TEXT.toInt())
             setTypeface(typeface, Typeface.BOLD)
@@ -160,7 +169,7 @@ class LeoRemoteActivity : AppCompatActivity() {
 
         status = TextView(this).apply {
             text = "● connessione"
-            textSize = 9.5f
+            textSize = 9f
             gravity = Gravity.CENTER
             setTextColor(MUTED.toInt())
             background = rounded(SURFACE_2.toInt(), dp(14).toFloat(), Color.TRANSPARENT)
