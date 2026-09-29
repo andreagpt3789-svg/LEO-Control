@@ -11,8 +11,10 @@ import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.net.HttpURLConnection
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.net.URL
 import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -50,6 +52,7 @@ class LeoVidaaClient(private val context: Context) {
     enum class AuthMode { MODERN, MIDDLE, LEGACY, STATIC }
 
     data class PairingResult(val ok: Boolean, val message: String)
+    private data class TvPairingInfo(val timestamp: Long?, val transportProtocol: Int?)
 
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private var client: MqttClient? = null
@@ -137,6 +140,7 @@ class LeoVidaaClient(private val context: Context) {
                 }
                 subscribePairingTopics()
                 pendingPairCallback = callback
+                Thread.sleep(550L)
                 val payload = JSONObject()
                     .put("app_version", 2)
                     .put("connect_result", 0)
@@ -188,13 +192,67 @@ class LeoVidaaClient(private val context: Context) {
 
     private fun connectForPairing(): Boolean {
         val uuid = controllerUuid()
-        val modes = listOf(AuthMode.MODERN, AuthMode.MIDDLE, AuthMode.LEGACY, AuthMode.STATIC)
+        val info = readTvPairingInfo()
+        val tvTimestamp = info.timestamp ?: (System.currentTimeMillis() / 1000L)
+
+        val modes = when {
+            info.transportProtocol != null && info.transportProtocol >= 3290 ->
+                listOf(AuthMode.MODERN, AuthMode.MIDDLE, AuthMode.LEGACY, AuthMode.STATIC)
+            info.transportProtocol != null && info.transportProtocol >= 3000 ->
+                listOf(AuthMode.MIDDLE, AuthMode.MODERN, AuthMode.LEGACY, AuthMode.STATIC)
+            info.transportProtocol != null ->
+                listOf(AuthMode.LEGACY, AuthMode.MIDDLE, AuthMode.MODERN, AuthMode.STATIC)
+            else ->
+                listOf(AuthMode.MODERN, AuthMode.MIDDLE, AuthMode.LEGACY, AuthMode.STATIC)
+        }
+
         for (mode in modes) {
-            val creds = credentials(uuid, mode)
+            val creds = credentials(uuid, mode, tvTimestamp)
+            tracePairing(
+                "AUTH " + mode.name,
+                "tvTime=" + tvTimestamp + ", transport=" + (info.transportProtocol ?: -1)
+            )
             val attempt = connect(creds.first, creds.second, creds.third)
             if (attempt.isSuccess) return true
         }
         return false
+    }
+
+    private fun readTvPairingInfo(): TvPairingInfo {
+        val ip = savedIp().trim()
+        if (ip.isBlank()) return TvPairingInfo(null, null)
+
+        for (port in intArrayOf(38400, 18400)) {
+            val conn = runCatching {
+                (URL("http://$ip:$port/MediaServer/rendererdevicedesc.xml").openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 1500
+                    readTimeout = 1500
+                    requestMethod = "GET"
+                    setRequestProperty("User-Agent", "LEO-Control")
+                }
+            }.getOrNull() ?: continue
+
+            try {
+                conn.connect()
+                val dateMs = conn.getHeaderFieldDate("Date", -1L)
+                val timestamp = if (dateMs > 0L) dateMs / 1000L else null
+                val body = runCatching {
+                    conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                }.getOrDefault("")
+                val transport = Regex(
+                    """transport_protocol\s*[=:>]\s*(\d+)""",
+                    RegexOption.IGNORE_CASE
+                ).find(body)?.groupValues?.getOrNull(1)?.toIntOrNull()
+
+                if (timestamp != null || transport != null) {
+                    return TvPairingInfo(timestamp, transport)
+                }
+            } catch (_: Throwable) {
+            } finally {
+                runCatching { conn.disconnect() }
+            }
+        }
+        return TvPairingInfo(null, null)
     }
 
     private fun connect(clientId: String, username: String, passwordValue: String): Result<Unit> =
@@ -247,7 +305,13 @@ class LeoVidaaClient(private val context: Context) {
             base + "/platform_service/data/gettoken"
         )
         topics.forEach { runCatching { c.subscribe(it, 0) } }
-
+        runCatching { c.subscribe(base + "/#", 0) }
+        runCatching {
+            c.subscribe(
+                "/remoteapp/tv/ui_service/" + currentClientId + "/actions/vidaa_app_connect",
+                0
+            )
+        }
     }
 
     private fun handleMessage(topic: String, body: String) {
@@ -412,7 +476,7 @@ class LeoVidaaClient(private val context: Context) {
     private fun schedulePinResponseTimeout(generation: Int) {
         Thread {
             try {
-                Thread.sleep(12000L)
+                Thread.sleep(15000L)
             } catch (_: InterruptedException) {
                 return@Thread
             }
@@ -468,13 +532,17 @@ class LeoVidaaClient(private val context: Context) {
         })
     }
 
-    private fun credentials(uuid: String, mode: AuthMode): Triple<String, String, String> {
+    private fun credentials(
+        uuid: String,
+        mode: AuthMode,
+        timestamp: Long = System.currentTimeMillis() / 1000L
+    ): Triple<String, String, String> {
         if (mode == AuthMode.STATIC) {
             val flat = uuid.replace(":", "").replace("-", "").uppercase(Locale.ROOT)
             return Triple(flat + "$" + "vidaa_common", "hisenseservice", "multimqttservice")
         }
 
-        val now = System.currentTimeMillis() / 1000L
+        val now = timestamp
         val race = md5(PATTERN + "$" + uuid).take(6)
         val clientId = uuid + "$" + "his" + "$" + race + "_vidaacommon_001"
         val username = when (mode) {
