@@ -243,7 +243,7 @@ class LeoIconDrawable(
                 "prime" in l -> "brand_p"
                 "disney" in l -> "brand_d"
                 l == "invio" -> "enter"
-                "svuota" in l -> "trash"
+                "svuota" in l || "pulisci" in l -> "trash"
                 "click sinistro" in l -> "mouse_left"
                 "click destro" in l -> "mouse_right"
                 "keyboard" in l || "tastiera" in l -> "keyboard"
