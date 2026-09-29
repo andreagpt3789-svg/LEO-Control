@@ -85,8 +85,18 @@ class LeoRemoteActivity : AppCompatActivity() {
     override fun onDestroy() {
         socket?.close(1000, "close")
         socket = null
-        vidaa?.disconnect()
-        fire?.close()
+
+        // Never let network teardown block Android's main thread.
+        val tv = vidaa
+        val ft = fire
+        Thread {
+            runCatching { tv?.disconnect() }
+            runCatching { ft?.close() }
+        }.apply {
+            name = "LEO-Remote-Cleanup"
+            isDaemon = true
+        }.start()
+
         super.onDestroy()
     }
 
