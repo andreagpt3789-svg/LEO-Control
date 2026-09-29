@@ -140,10 +140,10 @@ class LeoVidaaClient(private val context: Context) {
                     .put("connect_result", 0)
                     .put("device_type", "Mobile App")
                     .toString()
-                publish(
-                    "/remoteapp/tv/ui_service/" + currentClientId + "/actions/vidaa_app_connect",
-                    payload
-                )
+                val connectTopic =
+                    "/remoteapp/tv/ui_service/" + currentClientId + "/actions/vidaa_app_connect"
+                tracePairing("OUT " + connectTopic, payload)
+                publish(connectTopic, payload)
                 PairingResult(true, "Guarda la TV: inserisci in LEO il PIN mostrato sullo schermo.")
             }.getOrElse { PairingResult(false, it.message ?: "Pairing VIDAA non riuscito") }
             callback(result)
@@ -159,10 +159,10 @@ class LeoVidaaClient(private val context: Context) {
                 pinSubmitted = true
                 val value = pin.trim().toIntOrNull() ?: error("PIN non valido")
                 val payload = JSONObject().put("authNum", value).toString()
-                publish(
-                    "/remoteapp/tv/ui_service/" + currentClientId + "/actions/authenticationcode",
-                    payload
-                )
+                val authTopic =
+                    "/remoteapp/tv/ui_service/" + currentClientId + "/actions/authenticationcode"
+                tracePairing("OUT " + authTopic, payload)
+                publish(authTopic, payload)
                 val generation = pairingGeneration
                 scheduleTokenRecovery(generation)
                 PairingResult(true, "PIN inviato. Attendo il token di associazione dalla TV…")
@@ -390,14 +390,16 @@ class LeoVidaaClient(private val context: Context) {
 
     private fun requestInitialToken() {
         runCatching {
-            publish(
-                "/remoteapp/tv/platform_service/" + currentClientId + "/data/gettoken",
-                JSONObject().put("refreshtoken", "").toString()
-            )
-            publish(
-                "/remoteapp/tv/ui_service/" + currentClientId + "/actions/authenticationcodeclose",
-                ""
-            )
+            val tokenTopic =
+                "/remoteapp/tv/platform_service/" + currentClientId + "/data/gettoken"
+            val tokenPayload = JSONObject().put("refreshtoken", "").toString()
+            tracePairing("OUT " + tokenTopic, tokenPayload)
+            publish(tokenTopic, tokenPayload)
+
+            val closeTopic =
+                "/remoteapp/tv/ui_service/" + currentClientId + "/actions/authenticationcodeclose"
+            tracePairing("OUT " + closeTopic, "")
+            publish(closeTopic, "")
         }
     }
 
