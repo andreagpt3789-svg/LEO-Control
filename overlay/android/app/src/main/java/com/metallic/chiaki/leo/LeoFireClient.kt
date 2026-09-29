@@ -21,6 +21,7 @@ class LeoFireClient(private val context: Context) {
     }
 
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val stateLock = Any()
     private var dadb: Dadb? = null
     private var connectedIp: String? = null
 
@@ -28,7 +29,6 @@ class LeoFireClient(private val context: Context) {
 
     fun setIp(ip: String) {
         prefs.edit().putString(KEY_FIRE_IP, ip.trim()).apply()
-        close()
     }
 
     fun isReachable(): Boolean {
@@ -88,18 +88,28 @@ class LeoFireClient(private val context: Context) {
         }
     }
 
-    @Synchronized
     private fun connect(ip: String): Result<String> {
         return runCatching {
-            if (dadb != null && connectedIp == ip) return@runCatching ip
-            close()
+            val alreadyConnected = synchronized(stateLock) {
+                dadb != null && connectedIp == ip
+            }
+            if (alreadyConnected) return@runCatching ip
+
+            val previous = synchronized(stateLock) {
+                val old = dadb
+                dadb = null
+                connectedIp = null
+                old
+            }
+            runCatching { previous?.close() }
+
             val keyPair = keyPair()
             val client = Dadb.create(
                 host = ip,
                 port = ADB_PORT,
                 keyPair = keyPair,
-                connectTimeout = 2500,
-                socketTimeout = 4500,
+                connectTimeout = 1800,
+                socketTimeout = 2800,
                 keepAlive = true
             )
             val probe = client.shell("getprop ro.product.model").allOutput.trim()
@@ -107,8 +117,11 @@ class LeoFireClient(private val context: Context) {
                 client.close()
                 error("Endpoint ADB non riconosciuto")
             }
-            dadb = client
-            connectedIp = ip
+
+            synchronized(stateLock) {
+                dadb = client
+                connectedIp = ip
+            }
             prefs.edit().putString(KEY_FIRE_IP, ip).apply()
             ip
         }
@@ -143,16 +156,23 @@ class LeoFireClient(private val context: Context) {
         return runCatching {
             val ip = savedIp()
             if (ip.isBlank()) error("Fire TV non configurata")
-            if (dadb == null || connectedIp != ip) {
-                connect(ip).getOrThrow()
+
+            var current = synchronized(stateLock) {
+                if (connectedIp == ip) dadb else null
             }
-            val current = dadb ?: error("Connessione Fire TV non disponibile")
+            if (current == null) {
+                connect(ip).getOrThrow()
+                current = synchronized(stateLock) { dadb }
+            }
+
             try {
-                block(current)
+                block(current ?: error("Connessione Fire TV non disponibile"))
             } catch (first: Throwable) {
                 close()
                 connect(ip).getOrThrow()
-                block(dadb ?: error("Connessione Fire TV non disponibile"))
+                val retry = synchronized(stateLock) { dadb }
+                    ?: error("Connessione Fire TV non disponibile")
+                block(retry)
             }
         }
     }
@@ -218,10 +238,13 @@ class LeoFireClient(private val context: Context) {
         }.getOrDefault(false)
     }
 
-    @Synchronized
     fun close() {
-        runCatching { dadb?.close() }
-        dadb = null
-        connectedIp = null
+        val current = synchronized(stateLock) {
+            val old = dadb
+            dadb = null
+            connectedIp = null
+            old
+        }
+        runCatching { current?.close() }
     }
 }
