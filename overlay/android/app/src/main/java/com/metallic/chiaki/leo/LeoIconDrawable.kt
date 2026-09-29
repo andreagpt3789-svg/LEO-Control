@@ -102,6 +102,16 @@ class LeoIconDrawable(
                 canvas.drawLine(x(.50f),y(.10f),x(.50f),y(.38f),paint)
                 canvas.drawLine(x(.28f),y(.38f),x(.72f),y(.38f),paint)
             }
+            "phone_move" -> {
+                canvas.drawRoundRect(RectF(x(.28f),y(.12f),x(.72f),y(.88f)),s*.08f,s*.08f,paint)
+                canvas.drawLine(x(.42f),y(.19f),x(.58f),y(.19f),paint)
+                canvas.drawLine(x(.38f),y(.50f),x(.18f),y(.50f),paint)
+                canvas.drawLine(x(.18f),y(.50f),x(.27f),y(.41f),paint)
+                canvas.drawLine(x(.18f),y(.50f),x(.27f),y(.59f),paint)
+                canvas.drawLine(x(.62f),y(.50f),x(.82f),y(.50f),paint)
+                canvas.drawLine(x(.82f),y(.50f),x(.73f),y(.41f),paint)
+                canvas.drawLine(x(.82f),y(.50f),x(.73f),y(.59f),paint)
+            }
             "pc" -> {
                 canvas.drawRoundRect(RectF(x(.12f),y(.18f),x(.88f),y(.68f)),s*.05f,s*.05f,paint)
                 canvas.drawLine(x(.38f),y(.84f),x(.62f),y(.84f),paint)
@@ -247,6 +257,8 @@ class LeoIconDrawable(
                 "click sinistro" in l -> "mouse_left"
                 "click destro" in l -> "mouse_right"
                 "keyboard" in l || "tastiera" in l -> "keyboard"
+                "ricalibra" in l -> "phone_move"
+                "sensibile" in l -> "phone_move"
                 "mouse" in l || "click" in l -> "mouse"
                 "ch " in l || "channel" in l -> "channel"
                 "vol" in l -> "volume"
