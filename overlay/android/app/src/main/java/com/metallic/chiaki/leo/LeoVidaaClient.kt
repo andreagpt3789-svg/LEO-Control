@@ -128,16 +128,30 @@ class LeoVidaaClient(private val context: Context) {
                 pinSubmitted = false
                 tokenExchangeStarted = false
                 synchronized(pairingTrace) { pairingTrace.clear() }
+
+                // Known-good path from the working VIDAA legacy setup:
+                // no PIN, static MQTT credentials.
+                val legacy = connectLegacyStatic()
+                if (legacy.isSuccess) {
+                    pairingCompleted = true
+                    return@runCatching PairingResult(
+                        true,
+                        "Hisense associata direttamente a LEO Control."
+                    )
+                }
+
+                // Fallback only for firmwares that reject legacy static auth.
                 val connected = connectForPairing()
                 if (!connected) {
                     error(
                         if (hasOfficialVidaaCertificateSource()) {
                             "Connessione VIDAA non riuscita. Verifica che TV e telefono siano sulla stessa rete."
                         } else {
-                            "Per il collegamento diretto installa una volta l'app ufficiale VIDAA Smart TV. LEO userà localmente il certificato dell'app, senza passare dal PC."
+                            "Per il pairing VIDAA moderno serve il certificato client dell'app ufficiale VIDAA Smart TV."
                         }
                     )
                 }
+
                 subscribePairingTopics()
                 pendingPairCallback = callback
                 Thread.sleep(550L)
@@ -151,9 +165,31 @@ class LeoVidaaClient(private val context: Context) {
                 tracePairing("OUT " + connectTopic, payload)
                 publish(connectTopic, payload)
                 PairingResult(true, "Guarda la TV: inserisci in LEO il PIN mostrato sullo schermo.")
-            }.getOrElse { PairingResult(false, it.message ?: "Pairing VIDAA non riuscito") }
+            }.getOrElse { PairingResult(false, it.message ?: "Collegamento VIDAA non riuscito") }
             callback(result)
+        }.apply {
+            name = "LEO-VIDAA-Pairing"
+            isDaemon = true
         }.start()
+    }
+
+    private fun connectLegacyStatic(): Result<Unit> {
+        val result = connect(
+            clientId = "hisenseservice",
+            username = "hisenseservice",
+            passwordValue = "multimqttservice"
+        )
+        if (result.isSuccess) {
+            currentClientId = "hisenseservice"
+            currentUsername = "hisenseservice"
+            prefs.edit()
+                .putString(KEY_CLIENT_ID, "hisenseservice")
+                .putString(KEY_USERNAME, "hisenseservice")
+                .putString(KEY_ACCESS, "multimqttservice")
+                .putString(KEY_REFRESH, "")
+                .apply()
+        }
+        return result
     }
 
     fun submitPin(pin: String, callback: (PairingResult) -> Unit) {
@@ -538,8 +574,7 @@ class LeoVidaaClient(private val context: Context) {
         timestamp: Long = System.currentTimeMillis() / 1000L
     ): Triple<String, String, String> {
         if (mode == AuthMode.STATIC) {
-            val flat = uuid.replace(":", "").replace("-", "").uppercase(Locale.ROOT)
-            return Triple(flat + "$" + "vidaa_common", "hisenseservice", "multimqttservice")
+            return Triple("hisenseservice", "hisenseservice", "multimqttservice")
         }
 
         val now = timestamp
