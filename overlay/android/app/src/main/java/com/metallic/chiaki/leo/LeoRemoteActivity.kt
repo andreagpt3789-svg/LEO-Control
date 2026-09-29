@@ -7,12 +7,14 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
+import android.view.inputmethod.EditorInfo
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -222,91 +224,179 @@ class LeoRemoteActivity : AppCompatActivity() {
     }
 
     private fun buildPc(body: LinearLayout) {
-        body.addView(infoCard("LEO AGENT", "Controllo Windows sulla rete locale"))
+        body.addView(infoCard("PC WINDOWS", "LEO Agent · controllo diretto sulla rete locale"))
 
-        body.addView(section("TOUCHPAD", "Un dito per muovere · due dita per scorrere"))
+        body.addView(section("TOUCHPAD", "Movimento fluido · due dita per scorrere"))
 
         val pad = PcPadView(this) { dx, dy, tap, scroll ->
             ensureSocket("/ws/pc")
             when {
                 tap -> wsSend(JSONObject().put("type", "click").put("button", "left"))
                 scroll != 0 -> wsSend(JSONObject().put("type", "scroll").put("delta", scroll))
-                dx != 0 || dy != 0 -> wsSend(JSONObject().put("type", "move").put("dx", dx).put("dy", dy))
+                dx != 0 || dy != 0 -> wsSend(
+                    JSONObject()
+                        .put("type", "move")
+                        .put("dx", dx)
+                        .put("dy", dy)
+                )
             }
         }
+
         val padWrap = FrameLayout(this).apply {
-            background = rounded(SURFACE.toInt(), dp(28).toFloat(), BORDER.toInt())
+            background = gradientPanel(deviceAccent())
+            elevation = dp(2).toFloat()
         }
-        padWrap.addView(pad, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-        ))
-        padWrap.addView(TextView(this).apply {
-            text = "TOUCHPAD"
-            textSize = 10f
-            letterSpacing = 0.16f
-            gravity = Gravity.CENTER
-            setTextColor(Color.rgb(91, 113, 137))
-            isClickable = false
-        }, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(34), Gravity.CENTER
-        ))
-        padWrap.addView(TextView(this).apply {
-            text = "tocca per click"
-            textSize = 10f
-            gravity = Gravity.CENTER
-            setTextColor(Color.rgb(76, 91, 110))
-            isClickable = false
-        }, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(30), Gravity.BOTTOM
-        ).apply { bottomMargin = dp(10) })
-        body.addView(padWrap, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(270)).apply {
-            setMargins(0, dp(6), 0, dp(10))
-        })
+        padWrap.addView(
+            pad,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
 
-        body.addView(twoButtons(
-            "●  Click sinistro" to { pc("click", "button", "left") },
-            "○  Click destro" to { pc("click", "button", "right") }
-        ))
+        val padHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(14), dp(16), 0)
+            addView(TextView(this@LeoRemoteActivity).apply {
+                text = "TRACKPAD"
+                textSize = 9f
+                letterSpacing = 0.16f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(deviceAccent())
+            }, LinearLayout.LayoutParams(0, dp(28), 1f))
+            addView(TextView(this@LeoRemoteActivity).apply {
+                text = "60 FPS"
+                textSize = 8f
+                letterSpacing = 0.08f
+                gravity = Gravity.CENTER
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(Color.rgb(164, 182, 202))
+                background = rounded(Color.rgb(19, 29, 42), dp(10).toFloat(), Color.rgb(42, 63, 86))
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+            })
+        }
+        padWrap.addView(
+            padHeader,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(48),
+                Gravity.TOP
+            )
+        )
 
-        body.addView(section("TASTIERA", "Scrivi direttamente sul PC"))
+        val hintRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(14), 0, dp(14), dp(12))
+            addView(TextView(this@LeoRemoteActivity).apply {
+                text = "TAP = CLICK"
+                textSize = 8.5f
+                letterSpacing = 0.10f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(Color.rgb(112, 132, 155))
+            })
+            addView(TextView(this@LeoRemoteActivity).apply {
+                text = "   ·   "
+                textSize = 9f
+                setTextColor(Color.rgb(73, 91, 112))
+            })
+            addView(TextView(this@LeoRemoteActivity).apply {
+                text = "2 DITA = SCROLL"
+                textSize = 8.5f
+                letterSpacing = 0.10f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(Color.rgb(112, 132, 155))
+            })
+        }
+        padWrap.addView(
+            hintRow,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(40),
+                Gravity.BOTTOM
+            )
+        )
+
+        body.addView(
+            padWrap,
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(286)).apply {
+                setMargins(0, dp(6), 0, dp(10))
+            }
+        )
+
+        body.addView(
+            twoButtons(
+                "CLICK SINISTRO" to { pc("click", "button", "left") },
+                "CLICK DESTRO" to { pc("click", "button", "right") }
+            )
+        )
+
+        body.addView(section("TASTIERA", "Scrivi qui e invia direttamente al PC"))
+
+        val composer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            background = gradientPanel(deviceAccent())
+        }
+
         val type = EditText(this).apply {
             hint = "Scrivi sul PC…"
-            textSize = 15f
+            textSize = 16f
             setTextColor(TEXT.toInt())
-            setHintTextColor(Color.rgb(102, 116, 135))
-            background = rounded(SURFACE.toInt(), dp(20).toFloat(), BORDER.toInt())
-            setPadding(dp(18), 0, dp(18), 0)
-            inputType = InputType.TYPE_CLASS_TEXT
+            setHintTextColor(Color.rgb(101, 118, 139))
+            background = rounded(Color.rgb(11, 17, 25), dp(17).toFloat(), Color.rgb(39, 57, 78))
+            setPadding(dp(16), 0, dp(14), 0)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            imeOptions = EditorInfo.IME_ACTION_SEND
             setSingleLine(true)
         }
-        type.setOnEditorActionListener { _, _, _ ->
+
+        fun sendTypedText() {
             val value = type.text.toString()
-            if (value.isNotBlank()) {
+            if (value.isNotEmpty()) {
+                ensureSocket("/ws/pc")
                 wsSend(JSONObject().put("type", "text").put("text", value))
                 type.text.clear()
             }
-            true
         }
-        body.addView(type, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(62)).apply {
-            setMargins(0, dp(6), 0, dp(10))
-        })
 
-        body.addView(section("COMANDI", "Azioni rapide"))
-        body.addView(commandRow(
-            "↵  Invio" to { pc("key", "key", "enter") },
-            "⌫  Backspace" to { pc("key", "key", "backspace") },
-            "Alt ⇄" to { pc("shortcut", "name", "alt_tab") }
-        ))
-        body.addView(commandRow(
-            "−  Volume" to { pc("key", "key", "volume_down") },
-            "▶︎  Media" to { pc("key", "key", "media_play_pause") },
-            "+  Volume" to { pc("key", "key", "volume_up") }
-        ))
-        body.addView(commandRow(
-            "Copia" to { pc("shortcut", "name", "copy") },
-            "Incolla" to { pc("shortcut", "name", "paste") },
-            "Blocca" to { wsSend(JSONObject().put("type", "action").put("name", "lock")) }
-        ))
+        type.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEND || actionId == EditorInfo.IME_ACTION_DONE) {
+                sendTypedText()
+                true
+            } else {
+                false
+            }
+        }
+
+        val send = primaryButton("INVIA") { sendTypedText() }
+
+        composer.addView(
+            type,
+            LinearLayout.LayoutParams(0, dp(70), 1f).apply {
+                setMargins(0, 0, dp(8), 0)
+            }
+        )
+        composer.addView(send, LinearLayout.LayoutParams(dp(86), dp(58)))
+        body.addView(
+            composer,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, dp(6), 0, dp(8))
+            }
+        )
+
+        body.addView(
+            commandRow(
+                "INVIO" to { pc("key", "key", "enter") },
+                "BACKSPACE" to { pc("key", "key", "backspace") },
+                "SVUOTA" to { type.text.clear() }
+            )
+        )
     }
 
     private fun buildTv(body: LinearLayout) {
@@ -512,7 +602,7 @@ class LeoRemoteActivity : AppCompatActivity() {
         Thread {
             val result = when (command) {
                 "power" -> tv.sendKey("KEY_POWER")
-                "source" -> tv.sendKey("KEY_SOURCE")
+                "source" -> tv.sendKey("KEY_MENU")
                 "home" -> tv.sendKey("KEY_HOME")
                 "back" -> tv.sendKey("KEY_RETURNS")
                 "menu" -> tv.sendKey("KEY_MENU")
@@ -919,14 +1009,21 @@ class LeoRemoteActivity : AppCompatActivity() {
         TextView(this).apply {
             text = textValue
             gravity = Gravity.CENTER
-            textSize = 11.5f
-            letterSpacing = 0.03f
+            textSize = 10.5f
+            letterSpacing = 0.035f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(TEXT.toInt())
             background = buttonPanel(false)
             elevation = dp(1).toFloat()
             isClickable = true
             isFocusable = true
+
+            val icon = LeoIconDrawable.fromLabel(textValue, deviceAccent()).apply {
+                setBounds(0, 0, dp(23), dp(23))
+            }
+            setCompoundDrawables(null, icon, null, null)
+            compoundDrawablePadding = dp(5)
+            setPadding(dp(4), dp(6), dp(4), dp(5))
             setOnClickListener { action() }
         }
 
@@ -934,10 +1031,11 @@ class LeoRemoteActivity : AppCompatActivity() {
         TextView(this).apply {
             text = textValue
             gravity = Gravity.CENTER
-            textSize = 13f
+            textSize = 11f
+            letterSpacing = 0.05f
             setTextColor(Color.rgb(4, 12, 18))
             setTypeface(typeface, Typeface.BOLD)
-            background = rounded(deviceAccent(), dp(22).toFloat(), Color.TRANSPARENT)
+            background = rounded(deviceAccent(), dp(20).toFloat(), Color.TRANSPARENT)
             elevation = dp(3).toFloat()
             isClickable = true
             isFocusable = true
@@ -1010,16 +1108,82 @@ class LeoRemoteActivity : AppCompatActivity() {
         private var downX = 0f
         private var downY = 0f
         private var downAt = 0L
-        private var remainderX = 0f
-        private var remainderY = 0f
+
+        private var pendingX = 0f
+        private var pendingY = 0f
+        private var pendingScroll = 0f
+        private var frameScheduled = false
+        private var movedDistance = 0f
 
         init {
             isClickable = true
             isFocusable = true
             background = GradientDrawable().apply {
-                cornerRadius = context.resources.displayMetrics.density * 22f
-                setColor(Color.rgb(14, 20, 29))
-                setStroke(context.resources.displayMetrics.density.toInt(), Color.rgb(38, 53, 74))
+                cornerRadius = context.resources.displayMetrics.density * 24f
+                setColor(Color.TRANSPARENT)
+            }
+        }
+
+        private fun currentX(e: MotionEvent, historical: Int = -1): Float {
+            var sum = 0f
+            for (p in 0 until e.pointerCount) {
+                sum += if (historical >= 0) e.getHistoricalX(p, historical) else e.getX(p)
+            }
+            return sum / e.pointerCount.coerceAtLeast(1)
+        }
+
+        private fun currentY(e: MotionEvent, historical: Int = -1): Float {
+            var sum = 0f
+            for (p in 0 until e.pointerCount) {
+                sum += if (historical >= 0) e.getHistoricalY(p, historical) else e.getY(p)
+            }
+            return sum / e.pointerCount.coerceAtLeast(1)
+        }
+
+        private fun queueSample(x: Float, y: Float, pointers: Int) {
+            val rawDx = x - lastX
+            val rawDy = y - lastY
+            lastX = x
+            lastY = y
+
+            if (pointers >= 2) {
+                pendingScroll += -rawDy * 0.38f
+            } else {
+                val distance = hypot(rawDx.toDouble(), rawDy.toDouble()).toFloat()
+                val gain = when {
+                    distance < 1.5f -> 1.15f
+                    distance < 5f -> 1.55f
+                    distance < 12f -> 1.90f
+                    else -> 2.15f
+                }
+                pendingX += rawDx * gain
+                pendingY += rawDy * gain
+                movedDistance += abs(rawDx) + abs(rawDy)
+            }
+            scheduleFrame()
+        }
+
+        private fun scheduleFrame() {
+            if (frameScheduled) return
+            frameScheduled = true
+            postOnAnimation {
+                frameScheduled = false
+
+                val dx = pendingX.toInt().coerceIn(-360, 360)
+                val dy = pendingY.toInt().coerceIn(-360, 360)
+                val scroll = pendingScroll.toInt().coerceIn(-16, 16)
+
+                pendingX -= dx
+                pendingY -= dy
+                pendingScroll -= scroll
+
+                if (dx != 0 || dy != 0 || scroll != 0) {
+                    callback(dx, dy, false, scroll)
+                }
+
+                if (abs(pendingX) >= 1f || abs(pendingY) >= 1f || abs(pendingScroll) >= 1f) {
+                    scheduleFrame()
+                }
             }
         }
 
@@ -1027,54 +1191,39 @@ class LeoRemoteActivity : AppCompatActivity() {
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     parent?.requestDisallowInterceptTouchEvent(true)
-                    lastX = e.x
-                    lastY = e.y
-                    downX = e.x
-                    downY = e.y
+                    lastX = currentX(e)
+                    lastY = currentY(e)
+                    downX = lastX
+                    downY = lastY
                     downAt = System.currentTimeMillis()
-                    remainderX = 0f
-                    remainderY = 0f
+                    pendingX = 0f
+                    pendingY = 0f
+                    pendingScroll = 0f
+                    movedDistance = 0f
                 }
 
                 MotionEvent.ACTION_POINTER_DOWN,
+                MotionEvent.ACTION_POINTER_UP -> {
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                    lastX = currentX(e)
+                    lastY = currentY(e)
+                }
+
                 MotionEvent.ACTION_MOVE -> {
                     parent?.requestDisallowInterceptTouchEvent(true)
 
-                    val rawDx = e.x - lastX
-                    val rawDy = e.y - lastY
-                    lastX = e.x
-                    lastY = e.y
-
-                    if (e.pointerCount >= 2) {
-                        val scroll = (-rawDy * 0.55f).toInt().coerceIn(-18, 18)
-                        if (scroll != 0) callback(0, 0, false, scroll)
-                    } else {
-                        val distance = hypot(rawDx.toDouble(), rawDy.toDouble()).toFloat()
-                        val gain = when {
-                            distance < 2.5f -> 1.45f
-                            distance < 8f -> 1.80f
-                            else -> 2.15f
-                        }
-
-                        remainderX += rawDx * gain
-                        remainderY += rawDy * gain
-
-                        val dx = remainderX.toInt().coerceIn(-420, 420)
-                        val dy = remainderY.toInt().coerceIn(-420, 420)
-
-                        remainderX -= dx
-                        remainderY -= dy
-
-                        if (dx != 0 || dy != 0) {
-                            callback(dx, dy, false, 0)
-                        }
+                    for (h in 0 until e.historySize) {
+                        queueSample(currentX(e, h), currentY(e, h), e.pointerCount)
                     }
+                    queueSample(currentX(e), currentY(e), e.pointerCount)
                 }
 
                 MotionEvent.ACTION_UP -> {
                     parent?.requestDisallowInterceptTouchEvent(false)
-                    val moved = abs(e.x - downX) + abs(e.y - downY)
-                    if (moved < 18f && System.currentTimeMillis() - downAt < 300) {
+                    if (
+                        movedDistance < 14f &&
+                        System.currentTimeMillis() - downAt < 320L
+                    ) {
                         performClick()
                         callback(0, 0, true, 0)
                     }
@@ -1082,8 +1231,10 @@ class LeoRemoteActivity : AppCompatActivity() {
 
                 MotionEvent.ACTION_CANCEL -> {
                     parent?.requestDisallowInterceptTouchEvent(false)
-                    remainderX = 0f
-                    remainderY = 0f
+                    pendingX = 0f
+                    pendingY = 0f
+                    pendingScroll = 0f
+                    movedDistance = 0f
                 }
             }
             return true
