@@ -405,14 +405,14 @@ class LeoRemoteActivity : AppCompatActivity() {
         body.addView(section("NAVIGAZIONE", "Comandi principali"))
         body.addView(commandRow(
             "POWER" to { cmd("power") },
-            "SOURCE" to { cmd("source") },
+            "SORGENTI" to { cmd("source") },
             "HOME" to { cmd("home") }
         ))
         body.addView(remoteDpad())
         body.addView(commandRow(
-            "BACK" to { cmd("back") },
+            "INDIETRO" to { cmd("back") },
             "MENU" to { cmd("menu") },
-            "EXIT" to { cmd("exit") }
+            "ESCI" to { cmd("exit") }
         ))
         body.addView(commandRow(
             "VOL -" to { cmd("volume_down") },
@@ -450,9 +450,9 @@ class LeoRemoteActivity : AppCompatActivity() {
         ))
         body.addView(remoteDpad())
         body.addView(commandRow(
-            "BACK" to { cmd("back") },
+            "INDIETRO" to { cmd("back") },
             "PLAY" to { cmd("play_pause") },
-            "SEARCH" to { cmd("search") }
+            "CERCA" to { cmd("search") }
         ))
         body.addView(commandRow(
             "−  Vol" to { cmd("volume_down") },
@@ -601,7 +601,7 @@ class LeoRemoteActivity : AppCompatActivity() {
         Thread {
             val result = when (command) {
                 "power" -> tv.sendKey("KEY_POWER")
-                "source" -> tv.sendKey("KEY_MENU")
+                "source" -> tv.sendKey("KEY_INPUT")
                 "home" -> tv.sendKey("KEY_HOME")
                 "back" -> tv.sendKey("KEY_RETURNS")
                 "menu" -> tv.sendKey("KEY_MENU")
@@ -1181,7 +1181,7 @@ class LeoRemoteActivity : AppCompatActivity() {
         private fun scheduleFrame() {
             if (frameScheduled) return
             frameScheduled = true
-            postOnAnimation {
+            postDelayed({
                 frameScheduled = false
 
                 val dx = pendingX.toInt().coerceIn(-360, 360)
@@ -1199,7 +1199,7 @@ class LeoRemoteActivity : AppCompatActivity() {
                 if (abs(pendingX) >= 1f || abs(pendingY) >= 1f || abs(pendingScroll) >= 1f) {
                     scheduleFrame()
                 }
-            }
+            }, 16L)
         }
 
         override fun onTouchEvent(e: MotionEvent): Boolean {
