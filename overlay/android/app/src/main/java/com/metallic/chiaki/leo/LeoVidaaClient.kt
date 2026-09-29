@@ -244,6 +244,9 @@ class LeoVidaaClient(private val context: Context) {
     private fun handleMessage(topic: String, body: String) {
         val json = parseVidaaJson(body)
 
+        // VIDAA firmware families use either ui_service or platform_service
+        // for tokenissuance. Handle token messages first so they can never be
+        // swallowed by another pairing branch.
         if (topic.contains("tokenissuance") && json != null) {
             val nested = json.optJSONObject("data")
             val access = json.optString("accesstoken").ifBlank {
@@ -286,34 +289,6 @@ class LeoVidaaClient(private val context: Context) {
                     PairingResult(true, "PIN accettato dalla TV. Completo l'associazione…")
                 )
                 requestInitialToken()
-            }
-        }
-
-        if (topic.contains("tokenissuance") && json != null) {
-            val nested = json.optJSONObject("data")
-            val access = json.optString("accesstoken").ifBlank {
-                nested?.optString("accesstoken").orEmpty()
-            }.ifBlank {
-                json.optString("access_token")
-            }
-            val refresh = json.optString("refreshtoken").ifBlank {
-                nested?.optString("refreshtoken").orEmpty()
-            }.ifBlank {
-                json.optString("refresh_token")
-            }
-
-            if (access.isNotBlank()) {
-                pairingCompleted = true
-                prefs.edit()
-                    .putString(KEY_CLIENT_ID, currentClientId)
-                    .putString(KEY_USERNAME, currentUsername)
-                    .putString(KEY_ACCESS, access)
-                    .putString(KEY_REFRESH, refresh)
-                    .apply()
-                pendingPairCallback?.invoke(
-                    PairingResult(true, "Hisense associata direttamente a LEO Control.")
-                )
-                pendingPairCallback = null
             }
         }
     }
