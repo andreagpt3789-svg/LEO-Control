@@ -6,12 +6,15 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.text.Editable
 import android.text.InputType
+import android.text.TextWatcher
 import android.view.inputmethod.EditorInfo
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -59,6 +62,7 @@ class LeoRemoteActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = BG.toInt()
         window.navigationBarColor = BG.toInt()
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         hub = LeoHubClient(this)
         device = intent.getStringExtra(EXTRA_DEVICE) ?: DEVICE_PC
         if (device == DEVICE_TV) vidaa = LeoVidaaClient(this)
@@ -332,70 +336,184 @@ class LeoRemoteActivity : AppCompatActivity() {
             )
         )
 
-        body.addView(section("TASTIERA", "Scrivi qui e invia direttamente al PC"))
+        body.addView(section("TASTIERA LIVE", "Quello che scrivi viene digitato subito sul PC"))
 
-        val composer = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(8), dp(8), dp(8))
+        val keyboardCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(10), dp(10), dp(10), dp(10))
             background = gradientPanel(deviceAccent())
         }
 
+        val liveLabel = TextView(this).apply {
+            text = "LIVE"
+            textSize = 8.5f
+            letterSpacing = 0.14f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(deviceAccent())
+            setPadding(dp(4), 0, 0, dp(7))
+        }
+        keyboardCard.addView(liveLabel)
+
+        var mirroredText = ""
+        var suppressMirror = false
+
         val type = EditText(this).apply {
-            hint = "Scrivi sul PC…"
-            textSize = 16f
+            hint = "Scrivi qui…"
+            textSize = 18f
             setTextColor(TEXT.toInt())
             setHintTextColor(Color.rgb(101, 118, 139))
-            background = rounded(Color.rgb(11, 17, 25), dp(17).toFloat(), Color.rgb(39, 57, 78))
-            setPadding(dp(16), 0, dp(14), 0)
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-            imeOptions = EditorInfo.IME_ACTION_SEND
-            setSingleLine(true)
+            background = rounded(
+                Color.rgb(8, 14, 21),
+                dp(18).toFloat(),
+                Color.argb(
+                    100,
+                    Color.red(deviceAccent()),
+                    Color.green(deviceAccent()),
+                    Color.blue(deviceAccent())
+                )
+            )
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            inputType =
+                InputType.TYPE_CLASS_TEXT or
+                    InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
+                    InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            imeOptions = EditorInfo.IME_ACTION_NONE
+            minLines = 2
+            maxLines = 4
+            gravity = Gravity.TOP or Gravity.START
+            isHorizontalScrollBarEnabled = false
         }
 
-        fun sendTypedText() {
-            val value = type.text.toString()
-            if (value.isNotEmpty()) {
+        type.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(
+                s: CharSequence?,
+                start: Int,
+                count: Int,
+                after: Int
+            ) = Unit
+
+            override fun onTextChanged(
+                s: CharSequence?,
+                start: Int,
+                before: Int,
+                count: Int
+            ) = Unit
+
+            override fun afterTextChanged(editable: Editable?) {
+                val current = editable?.toString().orEmpty()
+                if (suppressMirror) {
+                    mirroredText = current
+                    return
+                }
+                if (current == mirroredText) return
+
                 ensureSocket("/ws/pc")
-                wsSend(JSONObject().put("type", "text").put("text", value))
-                type.text.clear()
+
+                var common = 0
+                val maxCommon = minOf(mirroredText.length, current.length)
+                while (
+                    common < maxCommon &&
+                    mirroredText[common] == current[common]
+                ) {
+                    common++
+                }
+
+                val removeCount = mirroredText.length - common
+                repeat(removeCount.coerceAtMost(256)) {
+                    wsSend(
+                        JSONObject()
+                            .put("type", "key")
+                            .put("key", "backspace")
+                    )
+                }
+
+                val inserted = current.substring(common)
+                if (inserted.isNotEmpty()) {
+                    wsSend(
+                        JSONObject()
+                            .put("type", "text")
+                            .put("text", inserted)
+                    )
+                }
+
+                mirroredText = current
+            }
+        })
+
+        type.setOnFocusChangeListener { view, hasFocus ->
+            if (hasFocus) {
+                view.postDelayed({
+                    view.requestRectangleOnScreen(
+                        android.graphics.Rect(
+                            0,
+                            0,
+                            view.width,
+                            view.height + dp(120)
+                        ),
+                        true
+                    )
+                }, 180L)
             }
         }
 
-        type.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEND || actionId == EditorInfo.IME_ACTION_DONE) {
-                sendTypedText()
-                true
-            } else {
-                false
-            }
-        }
-
-        val send = primaryButton("INVIA") { sendTypedText() }
-
-        composer.addView(
+        keyboardCard.addView(
             type,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        val liveActions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(8), 0, 0)
+        }
+
+        liveActions.addView(
+            actionButton("INVIO") {
+                ensureSocket("/ws/pc")
+                wsSend(JSONObject().put("type", "key").put("key", "enter"))
+            },
             LinearLayout.LayoutParams(0, dp(70), 1f).apply {
-                setMargins(0, 0, dp(8), 0)
+                setMargins(0, 0, dp(4), 0)
             }
         )
-        composer.addView(send, LinearLayout.LayoutParams(dp(86), dp(58)))
+
+        liveActions.addView(
+            actionButton("BACKSPACE") {
+                if (type.text.isNotEmpty()) {
+                    val last = type.text.length - 1
+                    type.text.delete(last, type.text.length)
+                } else {
+                    pc("key", "key", "backspace")
+                }
+            },
+            LinearLayout.LayoutParams(0, dp(70), 1f).apply {
+                setMargins(dp(4), 0, dp(4), 0)
+            }
+        )
+
+        liveActions.addView(
+            actionButton("PULISCI") {
+                suppressMirror = true
+                type.text.clear()
+                mirroredText = ""
+                suppressMirror = false
+            },
+            LinearLayout.LayoutParams(0, dp(70), 1f).apply {
+                setMargins(dp(4), 0, 0, 0)
+            }
+        )
+
+        keyboardCard.addView(liveActions)
         body.addView(
-            composer,
+            keyboardCard,
             LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply {
                 setMargins(0, dp(6), 0, dp(8))
             }
-        )
-
-        body.addView(
-            commandRow(
-                "INVIO" to { pc("key", "key", "enter") },
-                "BACKSPACE" to { pc("key", "key", "backspace") },
-                "SVUOTA" to { type.text.clear() }
-            )
         )
     }
 
