@@ -85,8 +85,13 @@ class LeoMainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        vidaa.disconnect()
-        fire.close()
+        Thread {
+            runCatching { vidaa.disconnect() }
+            runCatching { fire.close() }
+        }.apply {
+            name = "LEO-Home-Cleanup"
+            isDaemon = true
+        }.start()
         super.onDestroy()
     }
 
