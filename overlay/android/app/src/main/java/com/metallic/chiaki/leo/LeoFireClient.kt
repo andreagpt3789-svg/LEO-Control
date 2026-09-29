@@ -36,6 +36,15 @@ class LeoFireClient(private val context: Context) {
         return ip.isNotBlank() && portOpen(ip, ADB_PORT, 350)
     }
 
+    fun connectSaved(): Result<String> {
+        val ip = savedIp().trim()
+        if (ip.isBlank()) {
+            return Result.failure(IllegalStateException("IP Fire TV non configurato"))
+        }
+        return connect(ip)
+    }
+
+
     fun connectOrDiscover(): Result<String> {
         return try {
             val saved = savedIp()
