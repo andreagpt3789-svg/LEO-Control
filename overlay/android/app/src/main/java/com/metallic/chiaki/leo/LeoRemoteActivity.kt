@@ -127,19 +127,25 @@ class LeoRemoteActivity : AppCompatActivity() {
     }
 
     private fun topBar(): View {
-        val wrap = LinearLayout(this).apply {
+        val outer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(10), dp(16), dp(8))
+        }
+
+        val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14), dp(8), dp(16), dp(10))
         }
 
         val back = TextView(this).apply {
             text = "‹"
-            textSize = 34f
+            textSize = 31f
             gravity = Gravity.CENTER
             setTextColor(TEXT.toInt())
-            background = rounded(SURFACE_2.toInt(), dp(22).toFloat(), Color.TRANSPARENT)
+            background = rounded(Color.rgb(18, 27, 39), dp(22).toFloat(), Color.rgb(43, 61, 82))
+            elevation = dp(2).toFloat()
             isClickable = true
+            isFocusable = true
             setOnClickListener { finish() }
         }
 
@@ -148,40 +154,56 @@ class LeoRemoteActivity : AppCompatActivity() {
             setPadding(dp(14), 0, dp(8), 0)
         }
         titles.addView(TextView(this).apply {
+            text = "LEO CONTROL"
+            textSize = 9f
+            letterSpacing = 0.18f
+            setTextColor(deviceAccent())
+            setTypeface(typeface, Typeface.BOLD)
+        })
+        titles.addView(TextView(this).apply {
             text = when (device) {
                 DEVICE_TV -> "Hisense"
                 DEVICE_FIRE -> "Fire TV"
                 else -> "PC Windows"
             }
-            textSize = 21f
+            textSize = 25f
             includeFontPadding = false
             setTextColor(TEXT.toInt())
             setTypeface(typeface, Typeface.BOLD)
         })
         titles.addView(TextView(this).apply {
             text = when (device) {
-                DEVICE_TV -> "Telecomando diretto"
-                DEVICE_FIRE -> "Telecomando diretto"
-                else -> "Controllo remoto"
+                DEVICE_TV -> "VIDAA · controllo diretto"
+                DEVICE_FIRE -> "ADB · controllo diretto"
+                else -> "LEO Agent · rete locale"
             }
             textSize = 10.5f
             setTextColor(MUTED.toInt())
-            setPadding(0, dp(3), 0, 0)
+            setPadding(0, dp(2), 0, 0)
         })
 
         status = TextView(this).apply {
-            text = "● connessione"
-            textSize = 9f
+            text = "PRONTO"
+            textSize = 8.5f
+            letterSpacing = 0.08f
             gravity = Gravity.CENTER
+            setTypeface(typeface, Typeface.BOLD)
             setTextColor(MUTED.toInt())
-            background = rounded(SURFACE_2.toInt(), dp(14).toFloat(), Color.TRANSPARENT)
+            background = rounded(Color.rgb(18, 27, 39), dp(16).toFloat(), Color.rgb(43, 61, 82))
             setPadding(dp(10), dp(8), dp(10), dp(8))
         }
 
-        wrap.addView(back, LinearLayout.LayoutParams(dp(44), dp(44)))
-        wrap.addView(titles, LinearLayout.LayoutParams(0, dp(58), 1f))
-        wrap.addView(status)
-        return wrap
+        row.addView(back, LinearLayout.LayoutParams(dp(44), dp(44)))
+        row.addView(titles, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(status)
+        outer.addView(row)
+
+        outer.addView(View(this).apply {
+            background = rounded(deviceAccent(), dp(2).toFloat(), Color.TRANSPARENT)
+        }, LinearLayout.LayoutParams(dp(42), dp(3)).apply {
+            setMargins(dp(58), dp(8), 0, 0)
+        })
+        return outer
     }
 
     private fun buildPc(body: LinearLayout) {
@@ -355,29 +377,43 @@ class LeoRemoteActivity : AppCompatActivity() {
     }
 
     private fun infoCard(title: String, text: String): View {
+        val accent = deviceAccent()
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-            background = rounded(SURFACE.toInt(), dp(20).toFloat(), Color.TRANSPARENT)
+            setPadding(dp(16), dp(15), dp(16), dp(15))
+            background = gradientPanel(accent)
+            elevation = dp(2).toFloat()
+
             addView(TextView(this@LeoRemoteActivity).apply {
-                this.text = "●"
+                this.text = when (device) {
+                    DEVICE_TV -> "TV"
+                    DEVICE_FIRE -> "FT"
+                    else -> "PC"
+                }
+                gravity = Gravity.CENTER
                 textSize = 12f
-                setTextColor(GREEN.toInt())
-            }, LinearLayout.LayoutParams(dp(22), ViewGroup.LayoutParams.WRAP_CONTENT))
-            val copy = LinearLayout(this@LeoRemoteActivity).apply { orientation = LinearLayout.VERTICAL }
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(Color.rgb(5, 12, 18))
+                background = rounded(accent, dp(16).toFloat(), Color.TRANSPARENT)
+            }, LinearLayout.LayoutParams(dp(48), dp(48)))
+
+            val copy = LinearLayout(this@LeoRemoteActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(14), 0, 0, 0)
+            }
             copy.addView(TextView(this@LeoRemoteActivity).apply {
                 this.text = title
-                textSize = 9.5f
+                textSize = 10f
                 letterSpacing = 0.12f
                 setTypeface(typeface, Typeface.BOLD)
-                setTextColor(ACCENT.toInt())
+                setTextColor(accent)
             })
             copy.addView(TextView(this@LeoRemoteActivity).apply {
                 this.text = text
-                textSize = 10.5f
-                setTextColor(MUTED.toInt())
-                setPadding(0, dp(2), 0, 0)
+                textSize = 12f
+                setTextColor(TEXT.toInt())
+                setPadding(0, dp(4), 0, 0)
             })
             addView(copy, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         }
@@ -385,28 +421,29 @@ class LeoRemoteActivity : AppCompatActivity() {
 
     private fun remoteDpad(): View {
         val wrap = FrameLayout(this).apply {
-            background = rounded(SURFACE.toInt(), dp(30).toFloat(), BORDER.toInt())
+            background = gradientPanel(deviceAccent())
+            elevation = dp(2).toFloat()
         }
-        val s = dp(66)
-        val contentWidth = resources.displayMetrics.widthPixels - dp(36)
-        val c = contentWidth / 2 - s / 2
+        val s = dp(64)
 
-        fun add(label: String, command: String, x: Int, y: Int, primary: Boolean = false) {
+        fun add(label: String, command: String, gravityValue: Int, left: Int = 0, right: Int = 0, top: Int = 0, bottom: Int = 0, primary: Boolean = false) {
             val v = if (primary) primaryButton(label) { cmd(command) } else circleButton(label) { cmd(command) }
-            wrap.addView(v, FrameLayout.LayoutParams(s, s).apply {
-                leftMargin = x
-                topMargin = y
+            wrap.addView(v, FrameLayout.LayoutParams(s, s, gravityValue).apply {
+                leftMargin = dp(left)
+                rightMargin = dp(right)
+                topMargin = dp(top)
+                bottomMargin = dp(bottom)
             })
         }
 
-        add("▲", "up", c, dp(14))
-        add("◀", "left", c - s - dp(8), s + dp(16))
-        add("OK", "ok", c, s + dp(16), true)
-        add("▶", "right", c + s + dp(8), s + dp(16))
-        add("▼", "down", c, s * 2 + dp(18))
+        add("▲", "up", Gravity.TOP or Gravity.CENTER_HORIZONTAL, top = 16)
+        add("◀", "left", Gravity.START or Gravity.CENTER_VERTICAL, left = 52)
+        add("OK", "ok", Gravity.CENTER, primary = true)
+        add("▶", "right", Gravity.END or Gravity.CENTER_VERTICAL, right = 52)
+        add("▼", "down", Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL, bottom = 16)
 
-        wrap.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, s * 3 + dp(34)).apply {
-            setMargins(0, dp(8), 0, dp(8))
+        wrap.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(246)).apply {
+            setMargins(0, dp(6), 0, dp(10))
         }
         return wrap
     }
@@ -769,19 +806,26 @@ class LeoRemoteActivity : AppCompatActivity() {
     private fun section(title: String, subtitle: String): View {
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.BOTTOM
-            setPadding(dp(2), dp(20), dp(2), dp(7))
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(2), dp(24), dp(2), dp(9))
+
+            addView(View(this@LeoRemoteActivity).apply {
+                background = rounded(deviceAccent(), dp(2).toFloat(), Color.TRANSPARENT)
+            }, LinearLayout.LayoutParams(dp(3), dp(34)).apply {
+                setMargins(0, 0, dp(10), 0)
+            })
+
             val left = LinearLayout(this@LeoRemoteActivity).apply { orientation = LinearLayout.VERTICAL }
             left.addView(TextView(this@LeoRemoteActivity).apply {
                 text = title
-                textSize = 10.5f
-                letterSpacing = 0.14f
+                textSize = 11.5f
+                letterSpacing = 0.12f
                 setTextColor(TEXT.toInt())
                 setTypeface(typeface, Typeface.BOLD)
             })
             left.addView(TextView(this@LeoRemoteActivity).apply {
                 text = subtitle
-                textSize = 10f
+                textSize = 10.5f
                 setTextColor(MUTED.toInt())
                 setPadding(0, dp(2), 0, 0)
             })
@@ -820,9 +864,12 @@ class LeoRemoteActivity : AppCompatActivity() {
         TextView(this).apply {
             text = textValue
             gravity = Gravity.CENTER
-            textSize = 12f
+            textSize = 11.5f
+            letterSpacing = 0.03f
+            setTypeface(typeface, Typeface.BOLD)
             setTextColor(TEXT.toInt())
-            background = rounded(SURFACE_2.toInt(), dp(18).toFloat(), Color.TRANSPARENT)
+            background = buttonPanel(false)
+            elevation = dp(1).toFloat()
             isClickable = true
             isFocusable = true
             setOnClickListener { action() }
@@ -832,10 +879,11 @@ class LeoRemoteActivity : AppCompatActivity() {
         TextView(this).apply {
             text = textValue
             gravity = Gravity.CENTER
-            textSize = 12.5f
-            setTextColor(Color.rgb(5, 18, 24))
+            textSize = 13f
+            setTextColor(Color.rgb(4, 12, 18))
             setTypeface(typeface, Typeface.BOLD)
-            background = rounded(ACCENT.toInt(), dp(20).toFloat(), Color.TRANSPARENT)
+            background = rounded(deviceAccent(), dp(22).toFloat(), Color.TRANSPARENT)
+            elevation = dp(3).toFloat()
             isClickable = true
             isFocusable = true
             setOnClickListener { action() }
@@ -845,9 +893,11 @@ class LeoRemoteActivity : AppCompatActivity() {
         TextView(this).apply {
             text = textValue
             gravity = Gravity.CENTER
-            textSize = 18f
+            textSize = 19f
+            setTypeface(typeface, Typeface.BOLD)
             setTextColor(TEXT.toInt())
-            background = rounded(SURFACE_2.toInt(), dp(40).toFloat(), Color.TRANSPARENT)
+            background = rounded(Color.rgb(18, 27, 39), dp(40).toFloat(), Color.argb(100, Color.red(deviceAccent()), Color.green(deviceAccent()), Color.blue(deviceAccent())))
+            elevation = dp(2).toFloat()
             isClickable = true
             isFocusable = true
             setOnClickListener { action() }
@@ -859,6 +909,39 @@ class LeoRemoteActivity : AppCompatActivity() {
             setColor(color)
             if (stroke != Color.TRANSPARENT) setStroke(dp(1), stroke)
         }
+
+    private fun deviceAccent(): Int = when (device) {
+        DEVICE_TV -> Color.rgb(72, 218, 190)
+        DEVICE_FIRE -> Color.rgb(255, 170, 74)
+        else -> Color.rgb(76, 190, 255)
+    }
+
+    private fun gradientPanel(accent: Int): GradientDrawable =
+        GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            intArrayOf(Color.rgb(17, 26, 38), Color.rgb(10, 15, 23))
+        ).apply {
+            cornerRadius = dp(26).toFloat()
+            setStroke(
+                dp(1),
+                Color.argb(92, Color.red(accent), Color.green(accent), Color.blue(accent))
+            )
+        }
+
+    private fun buttonPanel(primary: Boolean): GradientDrawable {
+        val accent = deviceAccent()
+        return GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            if (primary) intArrayOf(accent, accent)
+            else intArrayOf(Color.rgb(24, 34, 48), Color.rgb(17, 25, 36))
+        ).apply {
+            cornerRadius = dp(18).toFloat()
+            setStroke(
+                dp(1),
+                Color.argb(if (primary) 180 else 56, Color.red(accent), Color.green(accent), Color.blue(accent))
+            )
+        }
+    }
 
     private fun dp(v: Int) =
         (v * resources.displayMetrics.density).toInt()
