@@ -1185,6 +1185,192 @@ class LeoRemoteActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun startSurfaceMouse() {
+        if (surfaceMouseEnabled || device != DEVICE_PC) return
+
+        val manager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val linear = manager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
+        val gyro = manager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+
+        if (linear == null) {
+            Toast.makeText(
+                this,
+                "Questo telefono non espone il sensore di accelerazione lineare.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        resetSurfaceMouseCalibration()
+        surfaceMouseManager = manager
+
+        val listener = object : SensorEventListener {
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+
+            override fun onSensorChanged(event: SensorEvent) {
+                if (!surfaceMouseEnabled) return
+
+                when (event.sensor.type) {
+                    Sensor.TYPE_GYROSCOPE -> {
+                        val gx = event.values[0]
+                        val gy = event.values[1]
+                        val gz = event.values[2]
+                        surfaceGyroMagnitude =
+                            kotlin.math.sqrt(gx * gx + gy * gy + gz * gz)
+                    }
+
+                    Sensor.TYPE_LINEAR_ACCELERATION -> {
+                        handleSurfaceAcceleration(event)
+                    }
+                }
+            }
+        }
+
+        surfaceMouseListener = listener
+        manager.registerListener(
+            listener,
+            linear,
+            SensorManager.SENSOR_DELAY_GAME
+        )
+        if (gyro != null) {
+            manager.registerListener(
+                listener,
+                gyro,
+                SensorManager.SENSOR_DELAY_GAME
+            )
+        }
+
+        surfaceMouseEnabled = true
+        surfaceMouseButton?.text = "FERMA"
+        surfaceMouseStatus?.text =
+            "Attivo · muovi fisicamente il telefono"
+        setStatus("● surface mouse", GREEN.toInt())
+    }
+
+    private fun stopSurfaceMouse() {
+        if (!surfaceMouseEnabled && surfaceMouseListener == null) return
+
+        surfaceMouseEnabled = false
+        val listener = surfaceMouseListener
+        if (listener != null) {
+            surfaceMouseManager?.unregisterListener(listener)
+        }
+
+        surfaceMouseListener = null
+        surfaceMouseManager = null
+        surfaceVelocityX = 0f
+        surfaceVelocityY = 0f
+        surfaceRemainderX = 0f
+        surfaceRemainderY = 0f
+        surfaceMouseButton?.text = "ATTIVA"
+        surfaceMouseStatus?.text =
+            "Fermo · appoggia il telefono su una superficie"
+
+        if (!isFinishing && !isDestroyed && device == DEVICE_PC) {
+            setStatus("● agent", GREEN.toInt())
+        }
+    }
+
+    private fun resetSurfaceMouseCalibration() {
+        surfaceLastAccelNs = 0L
+        surfaceVelocityX = 0f
+        surfaceVelocityY = 0f
+        surfaceRemainderX = 0f
+        surfaceRemainderY = 0f
+        surfaceStillSeconds = 0f
+        surfaceBiasX = 0f
+        surfaceBiasY = 0f
+        surfaceMouseStatus?.text =
+            if (surfaceMouseEnabled) {
+                "Ricalibrato · ora muovi il telefono"
+            } else {
+                "Ricalibrato · premi ATTIVA"
+            }
+    }
+
+    private fun handleSurfaceAcceleration(event: SensorEvent) {
+        val timestamp = event.timestamp
+        if (surfaceLastAccelNs == 0L) {
+            surfaceLastAccelNs = timestamp
+            return
+        }
+
+        val dt = ((timestamp - surfaceLastAccelNs) / 1_000_000_000f)
+            .coerceIn(0.004f, 0.05f)
+        surfaceLastAccelNs = timestamp
+
+        val rawX = event.values[0]
+        val rawY = event.values[1]
+        val rawMagnitude =
+            kotlin.math.sqrt(rawX * rawX + rawY * rawY)
+
+        val probablyStill =
+            rawMagnitude < 0.14f && surfaceGyroMagnitude < 0.08f
+
+        if (probablyStill) {
+            val learn = 0.025f
+            surfaceBiasX += (rawX - surfaceBiasX) * learn
+            surfaceBiasY += (rawY - surfaceBiasY) * learn
+            surfaceStillSeconds += dt
+        } else {
+            surfaceStillSeconds = 0f
+        }
+
+        var ax = rawX - surfaceBiasX
+        var ay = rawY - surfaceBiasY
+
+        val deadZone = 0.055f
+        ax = when {
+            ax > deadZone -> ax - deadZone
+            ax < -deadZone -> ax + deadZone
+            else -> 0f
+        }
+        ay = when {
+            ay > deadZone -> ay - deadZone
+            ay < -deadZone -> ay + deadZone
+            else -> 0f
+        }
+
+        surfaceVelocityX += ax * dt
+        surfaceVelocityY += ay * dt
+
+        val damping = if (probablyStill) 0.82f else 0.992f
+        surfaceVelocityX *= damping
+        surfaceVelocityY *= damping
+
+        if (surfaceStillSeconds > 0.22f) {
+            surfaceVelocityX = 0f
+            surfaceVelocityY = 0f
+        }
+
+        surfaceVelocityX = surfaceVelocityX.coerceIn(-0.55f, 0.55f)
+        surfaceVelocityY = surfaceVelocityY.coerceIn(-0.55f, 0.55f)
+
+        surfaceRemainderX +=
+            surfaceVelocityX * dt * surfaceMouseSensitivity
+        surfaceRemainderY +=
+            -surfaceVelocityY * dt * surfaceMouseSensitivity
+
+        val dx = surfaceRemainderX.toInt().coerceIn(-90, 90)
+        val dy = surfaceRemainderY.toInt().coerceIn(-90, 90)
+
+        surfaceRemainderX -= dx
+        surfaceRemainderY -= dy
+
+        if (dx != 0 || dy != 0) {
+            ensureSocket("/ws/pc")
+            wsSend(
+                JSONObject()
+                    .put("type", "move")
+                    .put("dx", dx)
+                    .put("dy", dy)
+            )
+            surfaceMouseStatus?.text = "Movimento rilevato"
+        } else if (surfaceStillSeconds > 0.22f) {
+            surfaceMouseStatus?.text = "Fermo"
+        }
+    }
+
     private fun pc(type: String, key: String, value: String) {
         ensureSocket("/ws/pc")
         wsSend(JSONObject().put("type", type).put(key, value))
