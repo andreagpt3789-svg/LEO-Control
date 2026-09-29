@@ -3,6 +3,8 @@ package com.metallic.chiaki.leo
 
 import android.app.Activity
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.text.InputType
@@ -74,12 +76,12 @@ class LeoRegisterActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.rgb(11, 13, 16)
-        window.navigationBarColor = Color.rgb(11, 13, 16)
+        window.statusBarColor = Color.rgb(6, 9, 14)
+        window.navigationBarColor = Color.rgb(6, 9, 14)
 
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(11, 13, 16))
+            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.rgb(7, 11, 18), Color.rgb(6, 9, 14)))
         }
         setContentView(root)
         showLogin()
@@ -87,16 +89,36 @@ class LeoRegisterActivity : AppCompatActivity() {
 
     private fun showLogin() {
         root.removeAllViews()
-        root.addView(header("Collega PS5"))
+        root.addView(header("Collega PS5", "Accesso PlayStation"))
 
-        val info = TextView(this).apply {
-            text = "Accedi con la tua email PlayStation. La password viene inserita solo nella pagina Sony e non viene letta o salvata da LEO Control."
-            textSize = 16f
-            setTextColor(Color.LTGRAY)
-            setPadding(dp(18), dp(14), dp(18), dp(10))
+        val info = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(16), dp(18), dp(16))
+            background = rounded(Color.rgb(14, 20, 29), dp(22).toFloat(), Color.rgb(38, 53, 74))
+            addView(TextView(this@LeoRegisterActivity).apply {
+                text = "ACCESSO SICURO"
+                textSize = 10f
+                letterSpacing = 0.14f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(Color.rgb(85, 207, 243))
+            })
+            addView(TextView(this@LeoRegisterActivity).apply {
+                text = "La password resta nella pagina Sony. LEO Control non la legge e non la salva."
+                textSize = 12.5f
+                setTextColor(Color.rgb(147, 160, 180))
+                setLineSpacing(0f, 1.08f)
+                setPadding(0, dp(7), 0, 0)
+            })
         }
-        root.addView(info)
+        root.addView(info, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(dp(18), dp(8), dp(18), dp(12)) })
 
+        val webShell = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(2), dp(2), dp(2), dp(2))
+            background = rounded(Color.rgb(14, 20, 29), dp(22).toFloat(), Color.rgb(38, 53, 74))
+        }
         val webView = WebView(this)
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
@@ -111,7 +133,12 @@ class LeoRegisterActivity : AppCompatActivity() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean =
                 maybeHandleRedirect(url?.let(Uri::parse))
         }
-        root.addView(webView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        webShell.addView(webView, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+        ))
+        root.addView(webShell, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+        ).apply { setMargins(dp(18), 0, dp(18), dp(18)) })
 
         webView.loadUrl(LOGIN_URL)
     }
@@ -212,35 +239,62 @@ class LeoRegisterActivity : AppCompatActivity() {
 
     private fun showPinStep() {
         root.removeAllViews()
-        root.addView(header("Collega PS5"))
+        root.addView(header("Collega PS5", "Ultimo passaggio"))
 
-        root.addView(TextView(this).apply {
-            text = "✓ Account PlayStation verificato"
-            textSize = 18f
-            setTextColor(Color.WHITE)
-            setPadding(dp(18), dp(22), dp(18), dp(10))
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(20), dp(20), dp(20))
+            background = rounded(Color.rgb(14, 20, 29), dp(26).toFloat(), Color.rgb(38, 53, 74))
+        }
+        card.addView(TextView(this).apply {
+            text = "✓  Account PlayStation verificato"
+            textSize = 13f
+            setTextColor(Color.rgb(92, 219, 154))
+            setTypeface(typeface, Typeface.BOLD)
         })
-
-        root.addView(TextView(this).apply {
-            text = "Ora sulla PS5 vai in:\n\nImpostazioni → Sistema → Riproduzione remota → Collega dispositivo\n\nInserisci qui il PIN di 8 cifre."
+        card.addView(TextView(this).apply {
+            text = "Apri sulla PS5:"
+            textSize = 12f
+            setTextColor(Color.rgb(147, 160, 180))
+            setPadding(0, dp(18), 0, dp(5))
+        })
+        card.addView(TextView(this).apply {
+            text = "Impostazioni  →  Sistema  →\nRiproduzione remota  →  Collega dispositivo"
             textSize = 16f
-            setTextColor(Color.LTGRAY)
-            setPadding(dp(18), dp(8), dp(18), dp(16))
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+            setLineSpacing(dp(4).toFloat(), 1f)
+        })
+        card.addView(TextView(this).apply {
+            text = "Inserisci il PIN di 8 cifre mostrato dalla PS5."
+            textSize = 11.5f
+            setTextColor(Color.rgb(147, 160, 180))
+            setPadding(0, dp(16), 0, dp(10))
         })
 
         val pin = EditText(this).apply {
-            hint = "PIN PS5"
-            textSize = 24f
+            hint = "00000000"
+            textSize = 28f
+            gravity = Gravity.CENTER
+            letterSpacing = 0.12f
             setTextColor(Color.WHITE)
-            setHintTextColor(Color.GRAY)
+            setHintTextColor(Color.rgb(75, 88, 105))
             inputType = InputType.TYPE_CLASS_NUMBER
-            setPadding(dp(18), dp(14), dp(18), dp(14))
+            background = rounded(Color.rgb(21, 29, 41), dp(18).toFloat(), Color.rgb(38, 53, 74))
+            setPadding(dp(18), 0, dp(18), 0)
         }
-        root.addView(pin, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        card.addView(pin, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(68)
+        ).apply { setMargins(0, dp(6), 0, dp(14)) })
 
-        val button = Button(this).apply {
-            text = "COLLEGA PS5"
-            textSize = 17f
+        val button = TextView(this).apply {
+            text = "Collega PS5"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.rgb(5, 18, 24))
+            background = rounded(Color.rgb(85, 207, 243), dp(20).toFloat(), Color.TRANSPARENT)
+            isClickable = true
             setOnClickListener {
                 val value = pin.text.toString().trim()
                 if (value.length != 8 || value.any { !it.isDigit() }) {
@@ -250,9 +304,13 @@ class LeoRegisterActivity : AppCompatActivity() {
                 startRegistration(value.toInt())
             }
         }
-        root.addView(button, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(62)).apply {
-            setMargins(dp(18), dp(18), dp(18), 0)
-        })
+        card.addView(button, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(58)
+        ))
+
+        root.addView(card, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(dp(18), dp(16), dp(18), 0) })
     }
 
     private fun startRegistration(pin: Int) {
@@ -311,33 +369,76 @@ class LeoRegisterActivity : AppCompatActivity() {
 
     private fun showWorking(message: String) {
         root.removeAllViews()
-        root.addView(header("Collega PS5"))
+        root.addView(header("Collega PS5", "Connessione in corso"))
         val wrap = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(20), dp(30), dp(20), dp(30))
+            setPadding(dp(24), dp(30), dp(24), dp(30))
         }
-        wrap.addView(ProgressBar(this))
-        wrap.addView(TextView(this).apply {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(28), dp(30), dp(28), dp(30))
+            background = rounded(Color.rgb(14, 20, 29), dp(28).toFloat(), Color.rgb(38, 53, 74))
+        }
+        card.addView(ProgressBar(this))
+        card.addView(TextView(this).apply {
             text = message
-            textSize = 17f
+            textSize = 16f
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
-            setPadding(0, dp(18), 0, 0)
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(0, dp(18), 0, dp(4))
         })
+        card.addView(TextView(this).apply {
+            text = "Non chiudere questa schermata."
+            textSize = 11f
+            gravity = Gravity.CENTER
+            setTextColor(Color.rgb(147, 160, 180))
+        })
+        wrap.addView(card, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
         root.addView(wrap, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
     }
 
-    private fun header(title: String): View {
-        return TextView(this).apply {
-            text = title
-            textSize = 23f
-            gravity = Gravity.CENTER_VERTICAL
-            setTextColor(Color.WHITE)
-            setBackgroundColor(Color.rgb(17, 20, 25))
-            setPadding(dp(18), dp(12), dp(18), dp(12))
+    private fun header(title: String, subtitle: String = ""): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(16), dp(20), dp(10))
         }
+        row.addView(TextView(this).apply {
+            text = "LEO CONTROL"
+            textSize = 9.5f
+            letterSpacing = 0.18f
+            setTextColor(Color.rgb(85, 207, 243))
+            setTypeface(typeface, Typeface.BOLD)
+        })
+        row.addView(TextView(this).apply {
+            text = title
+            textSize = 27f
+            includeFontPadding = false
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(0, dp(2), 0, 0)
+        })
+        if (subtitle.isNotBlank()) {
+            row.addView(TextView(this).apply {
+                text = subtitle
+                textSize = 11f
+                setTextColor(Color.rgb(147, 160, 180))
+                setPadding(0, dp(3), 0, 0)
+            })
+        }
+        return row
     }
+
+    private fun rounded(color: Int, radius: Float, stroke: Int): GradientDrawable =
+        GradientDrawable().apply {
+            cornerRadius = radius
+            setColor(color)
+            if (stroke != Color.TRANSPARENT) setStroke(dp(1), stroke)
+        }
 
     private fun enc(value: String): String = URLEncoder.encode(value, "UTF-8")
 
