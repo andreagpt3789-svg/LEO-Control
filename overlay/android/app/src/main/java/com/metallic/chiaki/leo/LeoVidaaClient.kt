@@ -246,18 +246,21 @@ class LeoVidaaClient(private val context: Context) {
             base + "/platform_service/data/gettoken"
         )
         topics.forEach { runCatching { c.subscribe(it, 0) } }
+
+        // Temporary pairing fallback/diagnostics. Some VIDAA generations reply
+        // on model-specific mobile subtopics. If wildcard subscription is
+        // rejected, all exact subscriptions above remain active.
+        runCatching { c.subscribe(base + "/#", 0) }
     }
 
     private fun handleMessage(topic: String, body: String) {
         tracePairing(topic, body)
         val json = parseVidaaJson(body)
 
-        val tokenTopic =
-            topic.contains("tokenissuance", ignoreCase = true) ||
-                topic.endsWith("/platform_service/data/gettoken", ignoreCase = true) ||
-                topic.endsWith("/ui_service/data/gettoken", ignoreCase = true)
-
-        if (tokenTopic && json != null) {
+        if (json != null) {
+            // Accept a valid token payload regardless of the exact response
+            // topic. VIDAA firmware families use tokenissuance, gettoken and
+            // model-specific data channels for the same exchange.
             val access = findJsonStringDeep(
                 json,
                 setOf("accesstoken", "access_token", "accessToken")
@@ -389,18 +392,18 @@ class LeoVidaaClient(private val context: Context) {
     }
 
     private fun requestInitialToken() {
-        runCatching {
-            val tokenTopic =
-                "/remoteapp/tv/platform_service/" + currentClientId + "/data/gettoken"
-            val tokenPayload = JSONObject().put("refreshtoken", "").toString()
-            tracePairing("OUT " + tokenTopic, tokenPayload)
-            publish(tokenTopic, tokenPayload)
+        val tokenTopic =
+            "/remoteapp/tv/platform_service/" + currentClientId + "/data/gettoken"
+        val tokenPayload = JSONObject().put("refreshtoken", "").toString()
+        tracePairing("OUT " + tokenTopic, tokenPayload)
+        runCatching { publish(tokenTopic, tokenPayload) }
 
-            val closeTopic =
-                "/remoteapp/tv/ui_service/" + currentClientId + "/actions/authenticationcodeclose"
-            tracePairing("OUT " + closeTopic, "")
-            publish(closeTopic, "")
-        }
+        // Keep this separate: a firmware that rejects authenticationcodeclose
+        // must not prevent the token request above from being transmitted.
+        val closeTopic =
+            "/remoteapp/tv/ui_service/" + currentClientId + "/actions/authenticationcodeclose"
+        tracePairing("OUT " + closeTopic, "")
+        runCatching { publish(closeTopic, "") }
     }
 
     private fun scheduleTokenRecovery(generation: Int) {
