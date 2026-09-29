@@ -394,7 +394,7 @@ class LeoMainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(2), dp(18), dp(2), 0)
             addView(TextView(this@LeoMainActivity).apply {
-                text = "LEO Control  0.12.0"
+                text = "LEO Control  0.12.2"
                 textSize = 10.5f
                 setTextColor(Color.rgb(90, 98, 110))
             }, LinearLayout.LayoutParams(0, dp(28), 1f))
