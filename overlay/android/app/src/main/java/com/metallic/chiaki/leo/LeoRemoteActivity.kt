@@ -2,10 +2,15 @@
 package com.metallic.chiaki.leo
 
 import android.app.AlertDialog
+import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -58,6 +63,22 @@ class LeoRemoteActivity : AppCompatActivity() {
     @Volatile private var fireConnecting = false
     private var vidaaPairDialogVisible = false
 
+    private var surfaceMouseManager: SensorManager? = null
+    private var surfaceMouseListener: SensorEventListener? = null
+    private var surfaceMouseEnabled = false
+    private var surfaceMouseButton: TextView? = null
+    private var surfaceMouseStatus: TextView? = null
+    private var surfaceMouseSensitivity = 10000f
+    private var surfaceLastAccelNs = 0L
+    private var surfaceVelocityX = 0f
+    private var surfaceVelocityY = 0f
+    private var surfaceRemainderX = 0f
+    private var surfaceRemainderY = 0f
+    private var surfaceGyroMagnitude = 0f
+    private var surfaceBiasX = 0f
+    private var surfaceBiasY = 0f
+    private var surfaceStillSeconds = 0f
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = BG.toInt()
@@ -89,6 +110,7 @@ class LeoRemoteActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        stopSurfaceMouse()
         socket?.close(1000, "close")
         socket = null
 
