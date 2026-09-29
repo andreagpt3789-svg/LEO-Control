@@ -579,8 +579,13 @@ class LeoRemoteActivity : AppCompatActivity() {
                             setStatus("● attendo TV…", MUTED.toInt())
                             Toast.makeText(this, result.message, Toast.LENGTH_SHORT).show()
                         } else {
-                            setStatus("● errore PIN", RED.toInt())
-                            Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
+                            setStatus("● pairing incompleto", RED.toInt())
+                            AlertDialog.Builder(this)
+                                .setTitle("Pairing Hisense")
+                                .setMessage(result.message)
+                                .setPositiveButton("Riprova") { _, _ -> startVidaaPairing() }
+                                .setNegativeButton("Chiudi", null)
+                                .show()
                         }
                     }
                 }
