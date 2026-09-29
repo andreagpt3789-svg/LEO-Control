@@ -67,14 +67,16 @@ jobs:
           chmod +x gradlew
           ./gradlew --no-daemon assembleDebug
 
-      - name: Collect APK
+      - name: Sign APK with persistent LEO key
         run: |
           mkdir -p out
-          cp upstream/android/app/build/outputs/apk/debug/app-debug.apk out/LEO-Control-Android-v0.16.0-debug.apk
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" sign             --ks "$HOME/.android/debug.keystore"             --ks-key-alias androiddebugkey             --ks-pass pass:android             --key-pass pass:android             --out out/LEO-Control-Android-v0.16.1-debug.apk             upstream/android/app/build/outputs/apk/debug/app-debug.apk
+          "$APKSIGNER" verify --verbose --print-certs out/LEO-Control-Android-v0.16.1-debug.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LEO-Control-Android-v0.16.0
-          path: out/LEO-Control-Android-v0.16.0-debug.apk
+          name: LEO-Control-Android-v0.16.1
+          path: out/LEO-Control-Android-v0.16.1-debug.apk
           if-no-files-found: error
