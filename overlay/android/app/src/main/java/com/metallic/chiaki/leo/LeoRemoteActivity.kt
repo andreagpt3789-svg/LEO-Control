@@ -358,6 +358,121 @@ class LeoRemoteActivity : AppCompatActivity() {
             )
         )
 
+        body.addView(section("MOUSE DA SUPERFICIE", "Appoggia il telefono e spostalo come un mouse"))
+
+        val surfaceCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(14), dp(14), dp(14))
+            background = gradientPanel(deviceAccent())
+        }
+
+        val surfaceIntro = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        surfaceIntro.addView(ImageView(this).apply {
+            setImageDrawable(LeoIconDrawable("phone_move", deviceAccent()))
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            background = rounded(
+                Color.rgb(13, 22, 32),
+                dp(14).toFloat(),
+                Color.argb(
+                    80,
+                    Color.red(deviceAccent()),
+                    Color.green(deviceAccent()),
+                    Color.blue(deviceAccent())
+                )
+            )
+            contentDescription = "Mouse da superficie"
+        }, LinearLayout.LayoutParams(dp(46), dp(46)))
+
+        val surfaceCopy = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), 0, 0, 0)
+        }
+        surfaceCopy.addView(TextView(this).apply {
+            text = "SURFACE MOUSE"
+            textSize = 10f
+            letterSpacing = 0.12f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(deviceAccent())
+        })
+        surfaceMouseStatus = TextView(this).apply {
+            text = "Fermo · appoggia il telefono su una superficie"
+            textSize = 11.5f
+            setTextColor(MUTED.toInt())
+            setPadding(0, dp(3), 0, 0)
+        }
+        surfaceCopy.addView(surfaceMouseStatus)
+        surfaceIntro.addView(
+            surfaceCopy,
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        )
+        surfaceCard.addView(surfaceIntro)
+
+        surfaceMouseButton = primaryButton("ATTIVA") {
+            if (surfaceMouseEnabled) stopSurfaceMouse() else startSurfaceMouse()
+        }
+        surfaceCard.addView(
+            surfaceMouseButton,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(58)
+            ).apply {
+                setMargins(0, dp(12), 0, 0)
+            }
+        )
+
+        val surfaceControls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(8), 0, 0)
+        }
+
+        surfaceControls.addView(
+            actionButton("MENO SENSIBILE") {
+                surfaceMouseSensitivity =
+                    (surfaceMouseSensitivity - 1500f).coerceAtLeast(4500f)
+                surfaceMouseStatus?.text =
+                    "Sensibilità " + (surfaceMouseSensitivity / 1000f).toInt()
+            },
+            LinearLayout.LayoutParams(0, dp(70), 1f).apply {
+                setMargins(0, 0, dp(4), 0)
+            }
+        )
+
+        surfaceControls.addView(
+            actionButton("RICALIBRA") {
+                resetSurfaceMouseCalibration()
+            },
+            LinearLayout.LayoutParams(0, dp(70), 1f).apply {
+                setMargins(dp(4), 0, dp(4), 0)
+            }
+        )
+
+        surfaceControls.addView(
+            actionButton("PIÙ SENSIBILE") {
+                surfaceMouseSensitivity =
+                    (surfaceMouseSensitivity + 1500f).coerceAtMost(19000f)
+                surfaceMouseStatus?.text =
+                    "Sensibilità " + (surfaceMouseSensitivity / 1000f).toInt()
+            },
+            LinearLayout.LayoutParams(0, dp(70), 1f).apply {
+                setMargins(dp(4), 0, 0, 0)
+            }
+        )
+
+        surfaceCard.addView(surfaceControls)
+
+        body.addView(
+            surfaceCard,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, dp(6), 0, dp(8))
+            }
+        )
+
         body.addView(section("TASTIERA LIVE", "Quello che scrivi viene digitato subito sul PC"))
 
         val keyboardCard = LinearLayout(this).apply {
