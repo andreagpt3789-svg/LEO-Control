@@ -594,27 +594,79 @@ class LeoMainActivity : AppCompatActivity() {
         hub.getStatus { reachable, paired, _ ->
             runOnUiThread {
                 when {
-                    !reachable -> AlertDialog.Builder(this)
-                        .setTitle("PC non raggiungibile")
+                    reachable && !paired -> showPairDialog {
+                        startPcRemoteActivity()
+                    }
+
+                    reachable -> startPcRemoteActivity()
+
+                    hub.savedPcMac().isNotBlank() -> wakePcAndWait()
+
+                    else -> AlertDialog.Builder(this)
+                        .setTitle("PC spento o non raggiungibile")
                         .setMessage(
-                            "Solo il controllo di Windows richiede LEO Agent sul PC. " +
-                                "Hisense, Fire TV e PS5 non passano più dal computer."
+                            "LEO non conosce ancora il MAC del PC. Avvia una volta LEO Agent " +
+                                "con il PC acceso oppure inserisci il MAC nelle impostazioni."
                         )
                         .setPositiveButton("Impostazioni") { _, _ -> showSettings() }
                         .setNegativeButton("Chiudi", null)
                         .show()
+                }
+            }
+        }
+    }
 
-                    !paired -> showPairDialog {
-                        startActivity(Intent(this, LeoRemoteActivity::class.java).putExtra(
-                            LeoRemoteActivity.EXTRA_DEVICE,
-                            LeoRemoteActivity.DEVICE_PC
-                        ))
+    private fun startPcRemoteActivity() {
+        startActivity(Intent(this, LeoRemoteActivity::class.java).putExtra(
+            LeoRemoteActivity.EXTRA_DEVICE,
+            LeoRemoteActivity.DEVICE_PC
+        ))
+    }
+
+    private fun wakePcAndWait() {
+        if (::pcStatus.isInitialized) {
+            pcStatus.text = "● accensione PC…"
+            pcStatus.setTextColor(ORANGE.toInt())
+        }
+        hub.wakePc { ok, message ->
+            runOnUiThread {
+                if (!ok) {
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                    return@runOnUiThread
+                }
+                Toast.makeText(this, "Accendo il PC…", Toast.LENGTH_SHORT).show()
+                pollPcAfterWake(0)
+            }
+        }
+    }
+
+    private fun pollPcAfterWake(attempt: Int) {
+        if (attempt >= 30) {
+            if (::pcStatus.isInitialized) {
+                pcStatus.text = "● PC non avviato"
+                pcStatus.setTextColor(ORANGE.toInt())
+            }
+            Toast.makeText(
+                this,
+                "Wake-on-LAN inviato, ma LEO Agent non è comparso entro 60 secondi.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        hub.getStatus { reachable, paired, _ ->
+            runOnUiThread {
+                if (reachable) {
+                    refreshStatuses()
+                    if (paired) {
+                        startPcRemoteActivity()
+                    } else {
+                        showPairDialog { startPcRemoteActivity() }
                     }
-
-                    else -> startActivity(Intent(this, LeoRemoteActivity::class.java).putExtra(
-                        LeoRemoteActivity.EXTRA_DEVICE,
-                        LeoRemoteActivity.DEVICE_PC
-                    ))
+                } else {
+                    window.decorView.postDelayed({
+                        if (!isFinishing && !isDestroyed) pollPcAfterWake(attempt + 1)
+                    }, 2000L)
                 }
             }
         }
@@ -709,6 +761,13 @@ class LeoMainActivity : AppCompatActivity() {
         }
         box.addView(hubInput)
 
+        val pcMac = EditText(this).apply {
+            hint = "MAC PC per Wake-on-LAN"
+            setText(hub.savedPcMac())
+            inputType = InputType.TYPE_CLASS_TEXT
+        }
+        box.addView(pcMac)
+
         AlertDialog.Builder(this)
             .setTitle("Dispositivi")
             .setView(box)
@@ -717,6 +776,7 @@ class LeoMainActivity : AppCompatActivity() {
                 fire.setIp(fireIp.text.toString())
                 prefs.edit().putString(KEY_PS5_IP, ps5.text.toString().trim()).apply()
                 hub.setHubUrl(hubInput.text.toString())
+                hub.setPcMac(pcMac.text.toString())
                 refreshStatuses()
             }
             .setNeutralButton("Associa PC") { _, _ -> showPairDialog() }
