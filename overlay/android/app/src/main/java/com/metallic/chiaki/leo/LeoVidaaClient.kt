@@ -59,6 +59,7 @@ class LeoVidaaClient(private val context: Context) {
     @Volatile private var pairingGeneration: Int = 0
     @Volatile private var pairingCompleted: Boolean = false
     @Volatile private var pinSubmitted: Boolean = false
+    @Volatile private var tokenExchangeStarted: Boolean = false
     private val pairingTrace = mutableListOf<String>()
 
     fun savedIp(): String = prefs.getString(KEY_TV_IP, DEFAULT_TV_IP).orEmpty()
@@ -122,6 +123,7 @@ class LeoVidaaClient(private val context: Context) {
                 pairingGeneration += 1
                 pairingCompleted = false
                 pinSubmitted = false
+                tokenExchangeStarted = false
                 synchronized(pairingTrace) { pairingTrace.clear() }
                 val connected = connectForPairing()
                 if (!connected) {
@@ -163,9 +165,7 @@ class LeoVidaaClient(private val context: Context) {
                     "/remoteapp/tv/ui_service/" + currentClientId + "/actions/authenticationcode"
                 tracePairing("OUT " + authTopic, payload)
                 publish(authTopic, payload)
-                val generation = pairingGeneration
-                scheduleTokenRecovery(generation)
-                PairingResult(true, "PIN inviato. Attendo il token di associazione dalla TV…")
+                PairingResult(true, "PIN inviato. Attendo conferma dalla TV…")
             }.getOrElse { PairingResult(false, it.message ?: "PIN non inviato") }
             callback(result)
         }.start()
@@ -287,19 +287,28 @@ class LeoVidaaClient(private val context: Context) {
             }
         }
 
-        if (pinSubmitted && topic.contains("authentication", ignoreCase = true)) {
+        val isPinResponse =
+            topic.endsWith("/ui_service/data/authenticationcode", ignoreCase = true)
+
+        if (pinSubmitted && isPinResponse) {
             val resultValue = findJsonStringDeep(json, setOf("result"))
             val successValue = findJsonStringDeep(json, setOf("success"))
             val accepted =
-                body.isBlank() ||
-                    resultValue == "1" ||
-                    successValue.equals("true", ignoreCase = true)
+                resultValue == "1" ||
+                    successValue.equals("true", ignoreCase = true) ||
+                    (body.isBlank() && isPinResponse)
 
-            if (accepted) {
+            if (accepted && !tokenExchangeStarted) {
+                tokenExchangeStarted = true
                 pendingPairCallback?.invoke(
-                    PairingResult(true, "PIN accettato dalla TV. Completo l'associazione…")
+                    PairingResult(true, "PIN accettato dalla TV. Richiedo il token VIDAA…")
                 )
                 requestInitialToken()
+                scheduleTokenRecovery(pairingGeneration)
+            } else if (!accepted && body.isNotBlank()) {
+                pendingPairCallback?.invoke(
+                    PairingResult(false, "La TV ha rifiutato il PIN VIDAA.")
+                )
             }
         }
     }
@@ -415,14 +424,14 @@ class LeoVidaaClient(private val context: Context) {
                 } catch (_: InterruptedException) {
                     return@Thread
                 }
-                if (generation != pairingGeneration || pairingCompleted) return@Thread
+                if (generation != pairingGeneration || pairingCompleted || !tokenExchangeStarted) return@Thread
                 if (client?.isConnected == true) requestInitialToken()
             }
             if (generation == pairingGeneration && !pairingCompleted) {
                 pendingPairCallback?.invoke(
                     PairingResult(
                         false,
-                        "La TV ha accettato il pairing, ma non è arrivato un token VIDAA utilizzabile.\n\nTrace pairing:\n" + pairingTraceSummary()
+                        "PIN accettato, ma la TV non ha consegnato il token VIDAA.\n\nTrace pairing:\n" + pairingTraceSummary()
                     )
                 )
             }
