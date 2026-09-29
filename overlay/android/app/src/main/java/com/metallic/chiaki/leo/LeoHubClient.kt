@@ -172,17 +172,26 @@ class LeoHubClient(private val context: Context) {
 
                 DatagramSocket().use { socket ->
                     socket.broadcast = true
-                    for (target in targets) {
-                        val packet = DatagramPacket(
-                            payload,
-                            payload.size,
-                            InetAddress.getByName(target),
-                            9
-                        )
-                        repeat(3) { socket.send(packet) }
+                    socket.reuseAddress = true
+
+                    val ports = intArrayOf(9, 7)
+                    repeat(5) {
+                        for (target in targets) {
+                            val address = InetAddress.getByName(target)
+                            for (port in ports) {
+                                val packet = DatagramPacket(
+                                    payload,
+                                    payload.size,
+                                    address,
+                                    port
+                                )
+                                socket.send(packet)
+                            }
+                        }
+                        Thread.sleep(80L)
                     }
                 }
-                "Pacchetto Wake-on-LAN inviato"
+                "Pacchetto Wake-on-LAN inviato su broadcast porte 9/7"
             }
             callback(result.isSuccess, result.getOrElse { it.message ?: "Wake-on-LAN non riuscito" })
         }.apply {
