@@ -680,17 +680,30 @@ class LeoRemoteActivity : AppCompatActivity() {
             "CH +" to { cmd("channel_up") }
         ))
 
-        body.addView(section("APP E INGRESSI", "Accesso diretto"))
-        body.addView(commandRow(
-            "Netflix" to { cmd("app_netflix") },
-            "YouTube" to { cmd("app_youtube") },
-            "Prime" to { cmd("app_prime") }
+        body.addView(section("TASTIERINO NUMERICO", "Canali e inserimento numerico"))
+        body.addView(numericRow(
+            "1" to { cmd("digit_1") },
+            "2" to { cmd("digit_2") },
+            "3" to { cmd("digit_3") }
         ))
-        body.addView(commandRow(
-            "Disney+" to { cmd("app_disney") },
+        body.addView(numericRow(
+            "4" to { cmd("digit_4") },
+            "5" to { cmd("digit_5") },
+            "6" to { cmd("digit_6") }
+        ))
+        body.addView(numericRow(
+            "7" to { cmd("digit_7") },
+            "8" to { cmd("digit_8") },
+            "9" to { cmd("digit_9") }
+        ))
+        body.addView(numericZeroRow { cmd("digit_0") })
+
+        body.addView(section("INGRESSI", "Accesso diretto"))
+        body.addView(twoButtons(
             "TV" to { cmd("source_tv") },
             "HDMI 1" to { cmd("source_hdmi1") }
         ))
+
         addGesturePad(body)
     }
 
@@ -854,7 +867,14 @@ class LeoRemoteActivity : AppCompatActivity() {
         }
         setStatus("● invio…", MUTED.toInt())
         Thread {
-            val result = when (command) {
+            val result = if (command.startsWith("digit_")) {
+                val digit = command.removePrefix("digit_")
+                if (digit.length == 1 && digit[0] in '0'..'9') {
+                    tv.sendKey("KEY_$digit")
+                } else {
+                    Result.failure(IllegalArgumentException("Numero VIDAA non valido"))
+                }
+            } else when (command) {
                 "power" -> tv.sendKey("KEY_POWER")
                 "source" -> {
                     runOnUiThread { showVidaaSources() }
@@ -1500,6 +1520,43 @@ class LeoRemoteActivity : AppCompatActivity() {
         items.forEach { (label, action) -> r.addView(actionButton(label, action), weight()) }
         return r
     }
+
+    private fun numericRow(vararg items: Pair<String, () -> Unit>): LinearLayout {
+        val r = row()
+        items.forEach { (label, action) ->
+            r.addView(numericButton(label, action), LinearLayout.LayoutParams(0, dp(64), 1f).apply {
+                setMargins(dp(4), 0, dp(4), 0)
+            })
+        }
+        return r
+    }
+
+    private fun numericZeroRow(action: () -> Unit): LinearLayout {
+        return row().apply {
+            addView(View(this@LeoRemoteActivity), LinearLayout.LayoutParams(0, dp(64), 1f))
+            addView(
+                numericButton("0", action),
+                LinearLayout.LayoutParams(0, dp(64), 1f).apply {
+                    setMargins(dp(4), 0, dp(4), 0)
+                }
+            )
+            addView(View(this@LeoRemoteActivity), LinearLayout.LayoutParams(0, dp(64), 1f))
+        }
+    }
+
+    private fun numericButton(textValue: String, action: () -> Unit): TextView =
+        TextView(this).apply {
+            text = textValue
+            gravity = Gravity.CENTER
+            textSize = 23f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(TEXT.toInt())
+            background = buttonPanel(false)
+            elevation = dp(1).toFloat()
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { action() }
+        }
 
     private fun row(): LinearLayout =
         LinearLayout(this).apply {
