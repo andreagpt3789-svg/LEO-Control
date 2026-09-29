@@ -164,7 +164,9 @@ class LeoHubClient(private val context: Context) {
                 val host = Regex("""https?://([^/:]+)""")
                     .find(hubUrl())?.groupValues?.getOrNull(1).orEmpty()
                 val octets = host.split(".")
-                if (octets.size == 4 && octets.all { it.toIntOrNull() in 0..255 }) {
+                if (octets.size == 4 && octets.all { part ->
+                        part.toIntOrNull()?.let { value -> value in 0..255 } == true
+                    }) {
                     targets += octets.take(3).joinToString(".") + ".255"
                 }
 
