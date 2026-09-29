@@ -23,6 +23,7 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONObject
 import kotlin.math.abs
+import kotlin.math.hypot
 
 class LeoRemoteActivity : AppCompatActivity() {
     companion object {
@@ -753,8 +754,12 @@ class LeoRemoteActivity : AppCompatActivity() {
         private var downX = 0f
         private var downY = 0f
         private var downAt = 0L
+        private var remainderX = 0f
+        private var remainderY = 0f
 
         init {
+            isClickable = true
+            isFocusable = true
             background = GradientDrawable().apply {
                 cornerRadius = context.resources.displayMetrics.density * 22f
                 setColor(Color.rgb(17, 21, 27))
@@ -765,30 +770,71 @@ class LeoRemoteActivity : AppCompatActivity() {
         override fun onTouchEvent(e: MotionEvent): Boolean {
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    parent?.requestDisallowInterceptTouchEvent(true)
                     lastX = e.x
                     lastY = e.y
                     downX = e.x
                     downY = e.y
                     downAt = System.currentTimeMillis()
+                    remainderX = 0f
+                    remainderY = 0f
                 }
+
+                MotionEvent.ACTION_POINTER_DOWN,
                 MotionEvent.ACTION_MOVE -> {
-                    val dx = ((e.x - lastX) * 1.35f).toInt().coerceIn(-320, 320)
-                    val dy = ((e.y - lastY) * 1.35f).toInt().coerceIn(-320, 320)
+                    parent?.requestDisallowInterceptTouchEvent(true)
+
+                    val rawDx = e.x - lastX
+                    val rawDy = e.y - lastY
                     lastX = e.x
                     lastY = e.y
+
                     if (e.pointerCount >= 2) {
-                        callback(0, 0, false, (-dy / 3).coerceIn(-12, 12))
-                    } else if (dx != 0 || dy != 0) {
-                        callback(dx, dy, false, 0)
+                        val scroll = (-rawDy * 0.55f).toInt().coerceIn(-18, 18)
+                        if (scroll != 0) callback(0, 0, false, scroll)
+                    } else {
+                        val distance = hypot(rawDx.toDouble(), rawDy.toDouble()).toFloat()
+                        val gain = when {
+                            distance < 2.5f -> 1.45f
+                            distance < 8f -> 1.80f
+                            else -> 2.15f
+                        }
+
+                        remainderX += rawDx * gain
+                        remainderY += rawDy * gain
+
+                        val dx = remainderX.toInt().coerceIn(-420, 420)
+                        val dy = remainderY.toInt().coerceIn(-420, 420)
+
+                        remainderX -= dx
+                        remainderY -= dy
+
+                        if (dx != 0 || dy != 0) {
+                            callback(dx, dy, false, 0)
+                        }
                     }
                 }
+
                 MotionEvent.ACTION_UP -> {
+                    parent?.requestDisallowInterceptTouchEvent(false)
                     val moved = abs(e.x - downX) + abs(e.y - downY)
                     if (moved < 18f && System.currentTimeMillis() - downAt < 300) {
+                        performClick()
                         callback(0, 0, true, 0)
                     }
                 }
+
+                MotionEvent.ACTION_CANCEL -> {
+                    parent?.requestDisallowInterceptTouchEvent(false)
+                    remainderX = 0f
+                    remainderY = 0f
+                }
             }
+            return true
+        }
+
+        override fun performClick(): Boolean {
+            super.performClick()
             return true
         }
     }
