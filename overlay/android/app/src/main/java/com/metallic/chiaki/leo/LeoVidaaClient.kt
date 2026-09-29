@@ -159,7 +159,6 @@ class LeoVidaaClient(private val context: Context) {
                     payload
                 )
                 val generation = pairingGeneration
-                requestInitialToken()
                 scheduleTokenRecovery(generation)
                 PairingResult(true, "PIN inviato. Attendo il token di associazione dalla TV…")
             }.getOrElse { PairingResult(false, it.message ?: "PIN non inviato") }
@@ -236,7 +235,8 @@ class LeoVidaaClient(private val context: Context) {
             base + "/ui_service/data/authenticationcodetoast",
             base + "/ui_service/data/authenticationcodeclose",
             base + "/ui_service/data/tokenissuance",
-            base + "/platform_service/data/tokenissuance"
+            base + "/platform_service/data/tokenissuance",
+            base + "/platform_service/data/gettoken"
         )
         topics.forEach { runCatching { c.subscribe(it, 0) } }
     }
@@ -247,7 +247,7 @@ class LeoVidaaClient(private val context: Context) {
         // VIDAA firmware families use either ui_service or platform_service
         // for tokenissuance. Handle token messages first so they can never be
         // swallowed by another pairing branch.
-        if (topic.contains("tokenissuance") && json != null) {
+        if ((topic.contains("tokenissuance") || topic.endsWith("/platform_service/data/gettoken")) && json != null) {
             val nested = json.optJSONObject("data")
             val access = json.optString("accesstoken").ifBlank {
                 nested?.optString("accesstoken").orEmpty()
