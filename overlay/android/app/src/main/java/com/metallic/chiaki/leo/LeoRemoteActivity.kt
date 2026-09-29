@@ -73,7 +73,12 @@ class LeoRemoteActivity : AppCompatActivity() {
                     showVidaaPairingIntro()
                 }
             }
-            DEVICE_FIRE -> setStatus("PRONTO", MUTED.toInt())
+            DEVICE_FIRE -> {
+                setStatus("AVVIO", MUTED.toInt())
+                window.decorView.postDelayed({
+                    if (!isFinishing && !isDestroyed) ensureFireAutoConnected()
+                }, 350L)
+            }
         }
     }
 
@@ -592,6 +597,47 @@ class LeoRemoteActivity : AppCompatActivity() {
                 }
             }.start()
         }
+    }
+
+    private fun ensureFireAutoConnected() {
+        if (fireConnecting || isFinishing || isDestroyed) return
+        fireConnecting = true
+        setStatus("CERCO FIRE TV", MUTED.toInt())
+
+        Thread {
+            val result = runCatching {
+                val saved = fire?.savedIp().orEmpty().trim()
+
+                if (saved.isNotBlank()) {
+                    val savedResult = fire?.connectSaved()
+                    if (savedResult?.isSuccess == true) {
+                        return@runCatching savedResult.getOrThrow()
+                    }
+                }
+
+                fire?.connectOrDiscover()?.getOrThrow()
+                    ?: error("Fire TV non disponibile")
+            }
+
+            runOnUiThread {
+                fireConnecting = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+
+                if (result.isSuccess) {
+                    setStatus("DIRETTO", GREEN.toInt())
+                } else {
+                    setStatus("ADB OFFLINE", ORANGE.toInt())
+                    Toast.makeText(
+                        this,
+                        result.exceptionOrNull()?.message ?: "Fire TV non raggiungibile",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }.apply {
+            name = "LEO-FireTV-AutoConnect"
+            isDaemon = true
+        }.start()
     }
 
     private fun ensureFireConnected(after: (() -> Unit)? = null) {
