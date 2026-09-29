@@ -141,16 +141,28 @@ class LeoPs5ControllerActivity : AppCompatActivity() {
         val value = getSharedPreferences(PREFS, MODE_PRIVATE).getString("theme", "Midnight")
         return when (value) {
             "OLED" -> Theme(
-                Color.rgb(0, 0, 0), Color.rgb(18, 18, 18), Color.rgb(42, 42, 46),
-                Color.rgb(78, 78, 84), Color.WHITE, Color.WHITE
+                Color.rgb(0, 0, 0),
+                Color.rgb(8, 10, 13),
+                Color.rgb(20, 25, 32),
+                Color.rgb(41, 51, 64),
+                Color.rgb(236, 241, 247),
+                Color.rgb(247, 250, 252)
             )
             "PlayStation Blue" -> Theme(
-                Color.rgb(5, 14, 35), Color.rgb(10, 29, 66), Color.rgb(24, 57, 108),
-                Color.rgb(43, 104, 210), Color.rgb(63, 140, 255), Color.WHITE
+                Color.rgb(4, 8, 18),
+                Color.rgb(10, 20, 38),
+                Color.rgb(18, 34, 58),
+                Color.rgb(36, 70, 116),
+                Color.rgb(92, 150, 255),
+                Color.rgb(247, 250, 252)
             )
             else -> Theme(
-                Color.rgb(11, 13, 16), Color.rgb(24, 28, 35), Color.rgb(42, 48, 59),
-                Color.rgb(75, 86, 105), Color.rgb(92, 145, 255), Color.WHITE
+                Color.rgb(6, 9, 14),
+                Color.rgb(14, 20, 29),
+                Color.rgb(21, 29, 41),
+                Color.rgb(38, 53, 74),
+                Color.rgb(85, 207, 243),
+                Color.rgb(247, 250, 252)
             )
         }
     }
@@ -198,9 +210,9 @@ class LeoPs5ControllerActivity : AppCompatActivity() {
         val theme = currentTheme()
         controlsLayer.setBackgroundColor(theme.background)
 
-        statusView = pill("●  CONNESSIONE…", theme.panel, theme.text, 13f)
-        controlsLayer.addView(statusView, frameLp(dp(178), dp(42), Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
-            topMargin = dp(8)
+        statusView = pill("PS5  •  CONNESSIONE", theme.panel, theme.text, 11f)
+        controlsLayer.addView(statusView, frameLp(dp(196), dp(38), Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
+            topMargin = dp(10)
         })
 
         val settings = makeTextButton("⚙", theme) { showControllerSettings() }
@@ -302,8 +314,8 @@ class LeoPs5ControllerActivity : AppCompatActivity() {
         })
 
         val hint = TextView(this).apply {
-            text = preset
-            textSize = 11f
+            text = "LEO  /  $preset"
+            textSize = 9.5f
             setTextColor(theme.text)
             alpha = 0.44f
             gravity = Gravity.CENTER
@@ -315,7 +327,7 @@ class LeoPs5ControllerActivity : AppCompatActivity() {
 
     private fun sendControllerState() {
         viewModel.input.touchControllerState = controllerState or touchpadState
-        statusView.text = "●  INPUT"
+        statusView.text = "PS5  •  INPUT"
         statusView.alpha = 1f
         statusView.animate().cancel()
         statusView.animate().alpha(0.72f).setDuration(180).start()
@@ -325,23 +337,27 @@ class LeoPs5ControllerActivity : AppCompatActivity() {
         return TextView(this).apply {
             text = label
             gravity = Gravity.CENTER
-            textSize = if (label.length <= 2) 18f else 11f
+            textSize = if (label.length <= 2) 18f else 10.5f
             setTextColor(theme.text)
+            setTypeface(typeface, if (label.length > 2) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
             alpha = opacity
-            background = rounded(theme.control, if (circle) dp(100).toFloat() else dp(16).toFloat())
+            background = controlShape(theme.control, if (circle) dp(100).toFloat() else dp(18).toFloat(), theme)
             isClickable = true
             isFocusable = true
+            elevation = dp(2).toFloat()
             setOnTouchListener { v, e ->
                 when (e.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
-                        background = rounded(theme.pressed, if (circle) dp(100).toFloat() else dp(16).toFloat())
+                        background = controlShape(theme.pressed, if (circle) dp(100).toFloat() else dp(18).toFloat(), theme)
+                        animate().scaleX(0.94f).scaleY(0.94f).setDuration(70).start()
                         if (getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("haptics", true))
                             v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         controllerState = controllerState.copy(buttons = controllerState.buttons or mask)
                         sendControllerState()
                     }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        background = rounded(theme.control, if (circle) dp(100).toFloat() else dp(16).toFloat())
+                        background = controlShape(theme.control, if (circle) dp(100).toFloat() else dp(18).toFloat(), theme)
+                        animate().scaleX(1f).scaleY(1f).setDuration(90).start()
                         controllerState = controllerState.copy(buttons = controllerState.buttons and mask.inv())
                         sendControllerState()
                     }
@@ -354,22 +370,26 @@ class LeoPs5ControllerActivity : AppCompatActivity() {
     private fun makeFaceButton(label: String, mask: UInt, color: Int, theme: Theme, opacity: Float): TextView =
         makeButton(label, mask, theme, opacity, true).apply {
             setTextColor(color)
-            textSize = 26f
+            textSize = 28f
+            setTypeface(typeface, android.graphics.Typeface.NORMAL)
         }
 
     private fun makeTrigger(label: String, left: Boolean, theme: Theme, opacity: Float): TextView {
         return TextView(this).apply {
             text = label
             gravity = Gravity.CENTER
-            textSize = 15f
+            textSize = 13f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(theme.text)
             alpha = opacity
-            background = rounded(theme.control, dp(16).toFloat())
+            background = controlShape(theme.control, dp(18).toFloat(), theme)
+            elevation = dp(2).toFloat()
             setOnTouchListener { v, e ->
                 val down = e.actionMasked == MotionEvent.ACTION_DOWN
                 val up = e.actionMasked == MotionEvent.ACTION_UP || e.actionMasked == MotionEvent.ACTION_CANCEL
                 if (down || up) {
-                    background = rounded(if (down) theme.pressed else theme.control, dp(16).toFloat())
+                    background = controlShape(if (down) theme.pressed else theme.control, dp(18).toFloat(), theme)
+                    animate().scaleX(if (down) 0.96f else 1f).scaleY(if (down) 0.94f else 1f).setDuration(80).start()
                     if (down && getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean("haptics", true))
                         v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     controllerState = if (left)
@@ -386,12 +406,13 @@ class LeoPs5ControllerActivity : AppCompatActivity() {
     private fun makeTextButton(label: String, theme: Theme, action: () -> Unit): Button =
         Button(this).apply {
             text = label
-            textSize = 17f
+            textSize = 16f
             minWidth = 0
             minHeight = 0
             setPadding(0, 0, 0, 0)
             setTextColor(theme.text)
-            backgroundTintList = android.content.res.ColorStateList.valueOf(theme.panel)
+            background = controlShape(theme.control, dp(22).toFloat(), theme)
+            elevation = dp(2).toFloat()
             setOnClickListener { action() }
         }
 
@@ -399,10 +420,16 @@ class LeoPs5ControllerActivity : AppCompatActivity() {
         TextView(this).apply {
             text = textValue
             gravity = Gravity.CENTER
-            textSize = size
+            textSize = 10.5f
+            letterSpacing = 0.08f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(textColor)
-            background = rounded(color, dp(18).toFloat())
-            alpha = 0.72f
+            background = GradientDrawable().apply {
+                cornerRadius = dp(18).toFloat()
+                setColor(Color.argb(224, Color.red(color), Color.green(color), Color.blue(color)))
+                setStroke(dp(1), Color.argb(45, 255, 255, 255))
+            }
+            alpha = 0.90f
         }
 
     private fun rounded(color: Int, radius: Float): GradientDrawable =
@@ -410,7 +437,20 @@ class LeoPs5ControllerActivity : AppCompatActivity() {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = radius
             setColor(color)
-            setStroke(dp(1), Color.argb(70, 255, 255, 255))
+            setStroke(dp(1), Color.argb(48, 125, 159, 194))
+        }
+
+    private fun controlShape(color: Int, radius: Float, theme: Theme): GradientDrawable =
+        GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(
+            color,
+            Color.rgb(
+                (Color.red(color) * 0.82f).toInt(),
+                (Color.green(color) * 0.82f).toInt(),
+                (Color.blue(color) * 0.82f).toInt()
+            )
+        )).apply {
+            cornerRadius = radius
+            setStroke(dp(1), Color.argb(70, Color.red(theme.accent), Color.green(theme.accent), Color.blue(theme.accent)))
         }
 
     private fun addAt(view: View, x: Int, y: Int, wDp: Int, hDp: Int) {
@@ -490,11 +530,11 @@ class LeoPs5ControllerActivity : AppCompatActivity() {
     private fun onStreamState(state: StreamState) {
         when (state) {
             is StreamStateConnecting -> {
-                statusView.text = "●  CONNESSIONE…"
+                statusView.text = "PS5  •  CONNESSIONE"
                 statusView.setTextColor(Color.LTGRAY)
             }
             is StreamStateConnected -> {
-                statusView.text = "●  PS5 CONNESSA"
+                statusView.text = "PS5  •  CONNESSA"
                 statusView.setTextColor(Color.rgb(90, 230, 150))
             }
             is StreamStateLoginPinRequest -> showLoginPin(state.pinIncorrect)
@@ -560,22 +600,26 @@ class LeoPs5ControllerActivity : AppCompatActivity() {
             val knobRadius = min(width, height) * 0.20f
 
             paint.style = Paint.Style.FILL
-            paint.color = Color.argb(70, 255, 255, 255)
-            canvas.drawCircle(cx, cy, radius * 1.22f, paint)
+            paint.color = Color.argb(155, 15, 22, 32)
+            canvas.drawCircle(cx, cy, radius * 1.30f, paint)
 
             paint.style = Paint.Style.STROKE
-            paint.strokeWidth = resources.displayMetrics.density * 2f
-            paint.color = Color.argb(145, Color.red(accent), Color.green(accent), Color.blue(accent))
-            canvas.drawCircle(cx, cy, radius * 1.22f, paint)
+            paint.strokeWidth = resources.displayMetrics.density * 1.5f
+            paint.color = Color.argb(105, Color.red(accent), Color.green(accent), Color.blue(accent))
+            canvas.drawCircle(cx, cy, radius * 1.30f, paint)
 
             paint.style = Paint.Style.FILL
-            paint.color = Color.argb(220, 225, 232, 244)
-            canvas.drawCircle(cx + knobX * radius, cy + knobY * radius, knobRadius, paint)
+            paint.color = Color.argb(235, 29, 40, 54)
+            canvas.drawCircle(cx + knobX * radius, cy + knobY * radius, knobRadius * 1.08f, paint)
 
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = resources.displayMetrics.density * 2f
             paint.color = accent
-            canvas.drawCircle(cx + knobX * radius, cy + knobY * radius, knobRadius, paint)
+            canvas.drawCircle(cx + knobX * radius, cy + knobY * radius, knobRadius * 1.08f, paint)
+
+            paint.style = Paint.Style.FILL
+            paint.color = Color.argb(120, Color.red(accent), Color.green(accent), Color.blue(accent))
+            canvas.drawCircle(cx + knobX * radius, cy + knobY * radius, knobRadius * 0.30f, paint)
         }
 
         override fun onTouchEvent(event: MotionEvent): Boolean {
