@@ -38,16 +38,16 @@ class LeoMainActivity : AppCompatActivity() {
         private const val KEY_PS5_IP = "ps5_ip"
         private const val DEFAULT_PS5_IP = "192.168.31.94"
 
-        private const val BG = 0xFF090B0FL
-        private const val SURFACE = 0xFF11151BL
-        private const val SURFACE_2 = 0xFF171C24L
-        private const val BORDER = 0xFF27303CL
+        private const val BG = 0xFF06090EL
+        private const val SURFACE = 0xFF0E141DL
+        private const val SURFACE_2 = 0xFF151D29L
+        private const val BORDER = 0xFF26354AL
         private const val TEXT = 0xFFF4F7FAL
-        private const val MUTED = 0xFF8B96A5L
-        private const val ACCENT = 0xFF63D3E9L
-        private const val GREEN = 0xFF62D39AL
-        private const val ORANGE = 0xFFF2A65AL
-        private const val RED = 0xFFFF7373L
+        private const val MUTED = 0xFF93A0B4L
+        private const val ACCENT = 0xFF55CFF3L
+        private const val GREEN = 0xFF5CDB9AL
+        private const val ORANGE = 0xFFFFB35CL
+        private const val RED = 0xFFFF6F7DL
     }
 
     private lateinit var hub: LeoHubClient
@@ -93,89 +93,93 @@ class LeoMainActivity : AppCompatActivity() {
     private fun buildHome() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(BG.toInt())
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.rgb(7, 11, 18), BG.toInt())
+            )
         }
 
         val scroll = ScrollView(this).apply {
             isFillViewport = true
             overScrollMode = View.OVER_SCROLL_NEVER
+            clipToPadding = false
         }
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(12), dp(18), dp(28))
+            setPadding(dp(20), dp(12), dp(20), dp(32))
         }
         scroll.addView(body)
 
         body.addView(header())
         body.addView(heroCard(), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { setMargins(0, dp(12), 0, dp(18)) })
+        ).apply { setMargins(0, dp(10), 0, dp(26)) })
 
-        body.addView(sectionHeader("DISPOSITIVI", "Tutti insieme. Ognuno con la propria connessione."))
+        body.addView(sectionHeader("DISPOSITIVI", "Tutto da qui"))
 
-        val grid = GridLayout(this).apply {
-            columnCount = 2
-            useDefaultMargins = false
-        }
-
-        grid.addView(deviceCard(
+        body.addView(deviceCard(
             badge = "PC",
             title = "PC Windows",
-            subtitle = "Mouse · tastiera · media",
+            subtitle = "Mouse, tastiera e controlli media",
             mode = "AGENT",
-            accent = Color.rgb(99, 211, 233),
+            accent = Color.rgb(85, 207, 243),
             statusSetter = { pcStatus = it }
-        ) { openDevice(LeoRemoteActivity.DEVICE_PC) }, gridLp())
+        ) { openDevice(LeoRemoteActivity.DEVICE_PC) }, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(104)
+        ).apply { setMargins(0, dp(8), 0, dp(4)) })
 
-        grid.addView(deviceCard(
+        body.addView(deviceCard(
             badge = "TV",
             title = "Hisense",
-            subtitle = "Telecomando · app · gesti",
+            subtitle = "Telecomando, app e navigazione",
             mode = "DIRECT",
-            accent = Color.rgb(104, 215, 160),
+            accent = Color.rgb(92, 219, 154),
             statusSetter = { tvStatus = it }
-        ) { openDevice(LeoRemoteActivity.DEVICE_TV) }, gridLp())
+        ) { openDevice(LeoRemoteActivity.DEVICE_TV) }, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(104)
+        ).apply { setMargins(0, dp(4), 0, dp(4)) })
 
-        grid.addView(deviceCard(
+        body.addView(deviceCard(
             badge = "FT",
             title = "Fire TV",
-            subtitle = "Telecomando · testo · gesti",
+            subtitle = "Telecomando, testo e gesti",
             mode = "DIRECT",
-            accent = Color.rgb(242, 166, 90),
+            accent = Color.rgb(255, 179, 92),
             statusSetter = { fireStatus = it }
-        ) { openDevice(LeoRemoteActivity.DEVICE_FIRE) }, gridLp())
+        ) { openDevice(LeoRemoteActivity.DEVICE_FIRE) }, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(104)
+        ).apply { setMargins(0, dp(4), 0, dp(4)) })
 
-        grid.addView(deviceCard(
+        body.addView(deviceCard(
             badge = "PS",
             title = "PlayStation 5",
-            subtitle = "Joypad LEO · diretto",
+            subtitle = "Joypad LEO diretto",
             mode = "DIRECT",
-            accent = Color.rgb(109, 137, 255),
+            accent = Color.rgb(112, 139, 255),
             statusSetter = { psStatus = it }
-        ) { openPs5() }, gridLp())
+        ) { openPs5() }, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(104)
+        ).apply { setMargins(0, dp(4), 0, dp(8)) })
 
-        body.addView(grid)
-
-        body.addView(sectionHeader("SCENE RAPIDE", "Accesso immediato"), LinearLayout.LayoutParams(
+        body.addView(sectionHeader("SCORCIATOIE", "Un tocco e vai"), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { setMargins(0, dp(18), 0, dp(4)) })
+        ).apply { setMargins(0, dp(22), 0, dp(6)) })
 
         val quick1 = row()
-        quick1.addView(quickAction("TV", "Apri telecomando") {
+        quick1.addView(quickAction("TV", "Telecomando") {
             openDevice(LeoRemoteActivity.DEVICE_TV)
         }, weight())
-        quick1.addView(quickAction("FIRE", "Apri telecomando") {
+        quick1.addView(quickAction("FIRE", "Telecomando") {
             openDevice(LeoRemoteActivity.DEVICE_FIRE)
         }, weight())
         body.addView(quick1)
 
         val quick2 = row()
-        quick2.addView(quickAction("PS5", "Apri joypad") { openPs5() }, weight())
-        quick2.addView(quickAction("NETFLIX", "Apri sulla Hisense") { launchNetflixDirect() }, weight())
+        quick2.addView(quickAction("PS5", "Joypad") { openPs5() }, weight())
+        quick2.addView(quickAction("NETFLIX", "Su Hisense") { launchNetflixDirect() }, weight())
         body.addView(quick2)
 
         body.addView(footer())
-
         root.addView(scroll, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         ))
@@ -186,33 +190,37 @@ class LeoMainActivity : AppCompatActivity() {
         val wrap = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(4), 0, dp(4))
         }
 
         val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         left.addView(TextView(this).apply {
-            text = "LEO"
-            textSize = 11f
+            text = "LEO CONTROL"
+            textSize = 10.5f
             letterSpacing = 0.22f
             setTextColor(ACCENT.toInt())
             setTypeface(typeface, Typeface.BOLD)
         })
         left.addView(TextView(this).apply {
-            text = "Control"
-            textSize = 30f
+            text = "Casa"
+            textSize = 31f
             setTextColor(TEXT.toInt())
             setTypeface(typeface, Typeface.BOLD)
+            includeFontPadding = false
         })
 
         val settings = TextView(this).apply {
             text = "⚙"
             gravity = Gravity.CENTER
-            textSize = 19f
+            textSize = 18f
             setTextColor(TEXT.toInt())
-            background = rounded(SURFACE_2.toInt(), dp(16).toFloat(), BORDER.toInt())
+            background = rounded(SURFACE_2.toInt(), dp(25).toFloat(), BORDER.toInt())
+            isClickable = true
+            isFocusable = true
             setOnClickListener { showSettings() }
         }
 
-        wrap.addView(left, LinearLayout.LayoutParams(0, dp(66), 1f))
+        wrap.addView(left, LinearLayout.LayoutParams(0, dp(70), 1f))
         wrap.addView(settings, LinearLayout.LayoutParams(dp(50), dp(50)))
         return wrap
     }
@@ -220,8 +228,12 @@ class LeoMainActivity : AppCompatActivity() {
     private fun heroCard(): View {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(16), dp(18), dp(16))
-            background = rounded(SURFACE.toInt(), dp(22).toFloat(), BORDER.toInt())
+            setPadding(dp(20), dp(18), dp(20), dp(18))
+            background = gradient(
+                Color.rgb(18, 42, 58),
+                Color.rgb(13, 21, 32),
+                dp(26).toFloat()
+            )
         }
 
         val top = LinearLayout(this).apply {
@@ -230,29 +242,30 @@ class LeoMainActivity : AppCompatActivity() {
         }
         top.addView(TextView(this).apply {
             text = "●"
-            textSize = 14f
+            textSize = 13f
             setTextColor(GREEN.toInt())
         })
         top.addView(TextView(this).apply {
-            text = "  LOCAL CONTROL"
-            textSize = 11f
-            letterSpacing = 0.10f
-            setTextColor(MUTED.toInt())
+            text = "  RETE LOCALE"
+            textSize = 10f
+            letterSpacing = 0.14f
+            setTextColor(Color.rgb(187, 210, 224))
             setTypeface(typeface, Typeface.BOLD)
         })
         card.addView(top)
 
         card.addView(TextView(this).apply {
-            text = "Il telefono è il telecomando."
-            textSize = 20f
+            text = "4 dispositivi.\nUna sola app."
+            textSize = 24f
             setTextColor(TEXT.toInt())
             setTypeface(typeface, Typeface.BOLD)
-            setPadding(0, dp(10), 0, dp(4))
+            setLineSpacing(0f, 0.94f)
+            setPadding(0, dp(12), 0, dp(8))
         })
         homeSubline = TextView(this).apply {
-            text = "Hisense, Fire TV e PS5 comunicano direttamente sulla rete locale. L'Agent serve solo per comandare Windows."
-            textSize = 12.5f
-            setTextColor(MUTED.toInt())
+            text = "Hisense, Fire TV e PS5 lavorano direttamente dal telefono. Il PC usa LEO Agent."
+            textSize = 12f
+            setTextColor(Color.rgb(166, 181, 199))
             setLineSpacing(0f, 1.08f)
         }
         card.addView(homeSubline)
@@ -262,20 +275,20 @@ class LeoMainActivity : AppCompatActivity() {
     private fun sectionHeader(title: String, subtitle: String): View {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.BOTTOM
-            setPadding(dp(2), 0, dp(2), dp(8))
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(2), 0, dp(2), dp(6))
         }
         val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         left.addView(TextView(this).apply {
             text = title
-            textSize = 12f
-            letterSpacing = 0.14f
+            textSize = 11f
+            letterSpacing = 0.15f
             setTextColor(TEXT.toInt())
             setTypeface(typeface, Typeface.BOLD)
         })
         left.addView(TextView(this).apply {
             text = subtitle
-            textSize = 11f
+            textSize = 10.5f
             setTextColor(MUTED.toInt())
             setPadding(0, dp(2), 0, 0)
         })
@@ -293,74 +306,72 @@ class LeoMainActivity : AppCompatActivity() {
         action: () -> Unit
     ): View {
         val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(15), dp(14), dp(15), dp(14))
-            background = rounded(SURFACE.toInt(), dp(22).toFloat(), BORDER.toInt())
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(12), dp(12), dp(12))
+            background = rounded(SURFACE.toInt(), dp(24).toFloat(), BORDER.toInt())
             isClickable = true
             isFocusable = true
             setOnClickListener { action() }
         }
 
-        val top = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
         val badgeView = TextView(this).apply {
             text = badge
             gravity = Gravity.CENTER
-            textSize = 13f
-            setTextColor(Color.WHITE)
+            textSize = 12f
+            setTextColor(Color.rgb(8, 13, 20))
             setTypeface(typeface, Typeface.BOLD)
-            background = rounded(accent, dp(14).toFloat(), Color.TRANSPARENT)
+            background = rounded(accent, dp(18).toFloat(), Color.TRANSPARENT)
         }
-        val modeView = TextView(this).apply {
-            text = mode
-            gravity = Gravity.CENTER
-            textSize = 9f
-            letterSpacing = 0.08f
-            setTextColor(MUTED.toInt())
-            background = rounded(SURFACE_2.toInt(), dp(10).toFloat(), BORDER.toInt())
-            setPadding(dp(8), dp(4), dp(8), dp(4))
-        }
-        top.addView(badgeView, LinearLayout.LayoutParams(dp(42), dp(42)))
-        top.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        top.addView(modeView)
-        card.addView(top)
+        card.addView(badgeView, LinearLayout.LayoutParams(dp(52), dp(52)))
 
-        card.addView(TextView(this).apply {
+        val center = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), 0, dp(8), 0)
+        }
+        center.addView(TextView(this).apply {
             text = title
-            textSize = 18f
+            textSize = 17f
+            includeFontPadding = false
             setTextColor(TEXT.toInt())
             setTypeface(typeface, Typeface.BOLD)
-            setPadding(0, dp(12), 0, dp(3))
         })
-        card.addView(TextView(this).apply {
+        center.addView(TextView(this).apply {
             text = subtitle
-            textSize = 11f
+            textSize = 10.8f
             setTextColor(MUTED.toInt())
-            maxLines = 2
-        }, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
-        ))
-
-        val bottom = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(8), 0, 0)
-        }
+            setPadding(0, dp(3), 0, dp(5))
+            maxLines = 1
+        })
         val status = TextView(this).apply {
             text = "● controllo…"
-            textSize = 10.5f
+            textSize = 10f
             setTextColor(MUTED.toInt())
         }
         statusSetter(status)
-        bottom.addView(status, LinearLayout.LayoutParams(0, dp(28), 1f))
-        bottom.addView(TextView(this).apply {
-            text = "›"
-            textSize = 24f
+        center.addView(status)
+        card.addView(center, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+
+        val right = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+        }
+        right.addView(TextView(this).apply {
+            text = mode
+            gravity = Gravity.CENTER
+            textSize = 8.5f
+            letterSpacing = 0.10f
             setTextColor(MUTED.toInt())
-        }, LinearLayout.LayoutParams(dp(24), dp(28)))
-        card.addView(bottom)
+            background = rounded(SURFACE_2.toInt(), dp(10).toFloat(), Color.TRANSPARENT)
+            setPadding(dp(8), dp(4), dp(8), dp(4))
+        })
+        right.addView(TextView(this).apply {
+            text = "›"
+            textSize = 27f
+            gravity = Gravity.CENTER
+            setTextColor(Color.rgb(141, 157, 180))
+        }, LinearLayout.LayoutParams(dp(34), dp(38)))
+        card.addView(right, LinearLayout.LayoutParams(dp(62), ViewGroup.LayoutParams.MATCH_PARENT))
         return card
     }
 
@@ -368,23 +379,23 @@ class LeoMainActivity : AppCompatActivity() {
         LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-            background = rounded(SURFACE_2.toInt(), dp(18).toFloat(), BORDER.toInt())
+            setPadding(dp(16), dp(13), dp(16), dp(13))
+            background = rounded(SURFACE_2.toInt(), dp(20).toFloat(), Color.TRANSPARENT)
             isClickable = true
             isFocusable = true
             setOnClickListener { action() }
             addView(TextView(this@LeoMainActivity).apply {
                 text = title
-                textSize = 12f
-                letterSpacing = 0.08f
-                setTextColor(TEXT.toInt())
+                textSize = 11f
+                letterSpacing = 0.10f
+                setTextColor(ACCENT.toInt())
                 setTypeface(typeface, Typeface.BOLD)
             })
             addView(TextView(this@LeoMainActivity).apply {
                 text = subtitle
-                textSize = 10.5f
-                setTextColor(MUTED.toInt())
-                setPadding(0, dp(3), 0, 0)
+                textSize = 11f
+                setTextColor(TEXT.toInt())
+                setPadding(0, dp(4), 0, 0)
             })
         }
 
@@ -392,17 +403,17 @@ class LeoMainActivity : AppCompatActivity() {
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(2), dp(18), dp(2), 0)
+            setPadding(dp(2), dp(24), dp(2), 0)
             addView(TextView(this@LeoMainActivity).apply {
-                text = "LEO Control  0.12.2"
-                textSize = 10.5f
-                setTextColor(Color.rgb(90, 98, 110))
+                text = "LEO Control  0.13.0"
+                textSize = 10f
+                setTextColor(Color.rgb(81, 94, 112))
             }, LinearLayout.LayoutParams(0, dp(28), 1f))
             addView(TextView(this@LeoMainActivity).apply {
                 text = "PHONE FIRST"
-                textSize = 9f
-                letterSpacing = 0.12f
-                setTextColor(Color.rgb(90, 98, 110))
+                textSize = 8.5f
+                letterSpacing = 0.14f
+                setTextColor(Color.rgb(81, 94, 112))
             })
         }
 
@@ -696,11 +707,11 @@ class LeoMainActivity : AppCompatActivity() {
 
     private fun row() = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
-        setPadding(0, dp(4), 0, dp(4))
+        setPadding(0, dp(5), 0, dp(5))
     }
 
     private fun weight() = LinearLayout.LayoutParams(0, dp(72), 1f).apply {
-        setMargins(dp(5), 0, dp(5), 0)
+        setMargins(dp(4), 0, dp(4), 0)
     }
 
     private fun rounded(color: Int, radius: Float, stroke: Int) =
@@ -708,6 +719,12 @@ class LeoMainActivity : AppCompatActivity() {
             cornerRadius = radius
             setColor(color)
             if (stroke != Color.TRANSPARENT) setStroke(dp(1), stroke)
+        }
+
+    private fun gradient(start: Int, end: Int, radius: Float) =
+        GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(start, end)).apply {
+            cornerRadius = radius
+            setStroke(dp(1), Color.rgb(38, 58, 76))
         }
 
     private fun dp(value: Int): Int =
