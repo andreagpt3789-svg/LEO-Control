@@ -107,20 +107,13 @@ class LeoRemoteActivity : AppCompatActivity() {
         }
         scroll.addView(body)
 
-        // Android 15 draws apps edge-to-edge by default. Keep the whole remote
-        // below the real status bar/notch and above the navigation bar.
+        root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+
+        // Android 15 edge-to-edge: move the complete remote below the status
+        // bar/notch and above the gesture/navigation area.
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val system = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
             view.setPadding(0, system.top, 0, system.bottom)
-            insets
-        }
-
-        root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-
-        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
-            val system = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-            bar.setPadding(dp(14), system.top + dp(8), dp(16), dp(8))
-            body.setPadding(dp(18), dp(10), dp(18), system.bottom + dp(24))
             insets
         }
 
