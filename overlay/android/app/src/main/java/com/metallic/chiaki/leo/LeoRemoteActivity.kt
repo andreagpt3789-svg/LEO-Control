@@ -106,6 +106,15 @@ class LeoRemoteActivity : AppCompatActivity() {
             setPadding(dp(18), dp(10), dp(18), dp(30))
         }
         scroll.addView(body)
+
+        // Android 15 draws apps edge-to-edge by default. Keep the whole remote
+        // below the real status bar/notch and above the navigation bar.
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+            val system = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            view.setPadding(0, system.top, 0, system.bottom)
+            insets
+        }
+
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
@@ -128,7 +137,7 @@ class LeoRemoteActivity : AppCompatActivity() {
         val wrap = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14), dp(10), dp(16), dp(8))
+            setPadding(dp(14), dp(8), dp(16), dp(10))
         }
 
         val back = TextView(this).apply {
@@ -173,7 +182,7 @@ class LeoRemoteActivity : AppCompatActivity() {
             gravity = Gravity.CENTER
             setTextColor(MUTED.toInt())
             background = rounded(SURFACE_2.toInt(), dp(14).toFloat(), Color.TRANSPARENT)
-            setPadding(dp(10), dp(7), dp(10), dp(7))
+            setPadding(dp(10), dp(8), dp(10), dp(8))
         }
 
         wrap.addView(back, LinearLayout.LayoutParams(dp(44), dp(44)))
