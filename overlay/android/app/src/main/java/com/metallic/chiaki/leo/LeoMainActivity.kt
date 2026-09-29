@@ -13,6 +13,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.GridLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -172,24 +173,6 @@ class LeoMainActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT, dp(104)
         ).apply { setMargins(0, dp(4), 0, dp(8)) })
 
-        body.addView(sectionHeader("SCORCIATOIE", "Un tocco e vai"), LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { setMargins(0, dp(22), 0, dp(6)) })
-
-        val quick1 = row()
-        quick1.addView(quickAction("TV", "Telecomando") {
-            openDevice(LeoRemoteActivity.DEVICE_TV)
-        }, weight())
-        quick1.addView(quickAction("FIRE", "Telecomando") {
-            openDevice(LeoRemoteActivity.DEVICE_FIRE)
-        }, weight())
-        body.addView(quick1)
-
-        val quick2 = row()
-        quick2.addView(quickAction("PS5", "Joypad") { openPs5() }, weight())
-        quick2.addView(quickAction("NETFLIX", "Su Hisense") { launchNetflixDirect() }, weight())
-        body.addView(quick2)
-
         body.addView(footer())
         root.addView(scroll, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
@@ -226,23 +209,20 @@ class LeoMainActivity : AppCompatActivity() {
             setTypeface(typeface, Typeface.BOLD)
         })
         left.addView(TextView(this).apply {
-            text = "Control Center"
+            text = "Casa"
             textSize = 27f
             setTextColor(TEXT.toInt())
             setTypeface(typeface, Typeface.BOLD)
             includeFontPadding = false
         })
 
-        val settings = TextView(this).apply {
-            text = "SET"
-            gravity = Gravity.CENTER
-            textSize = 9f
-            letterSpacing = 0.08f
-            setTypeface(typeface, Typeface.BOLD)
-            setTextColor(TEXT.toInt())
+        val settings = ImageView(this).apply {
+            setImageDrawable(LeoIconDrawable("settings", Color.rgb(188, 205, 224)))
+            setPadding(dp(12), dp(12), dp(12), dp(12))
             background = rounded(Color.rgb(17, 25, 36), dp(22).toFloat(), Color.rgb(38, 53, 74))
             isClickable = true
             isFocusable = true
+            contentDescription = "Impostazioni"
             setOnClickListener { showSettings() }
         }
 
@@ -294,14 +274,14 @@ class LeoMainActivity : AppCompatActivity() {
         card.addView(top)
 
         card.addView(TextView(this).apply {
-            text = "Tutto sotto controllo."
+            text = "Un solo centro. Tutti i dispositivi."
             textSize = 25f
             setTextColor(TEXT.toInt())
             setTypeface(typeface, Typeface.BOLD)
             setPadding(0, dp(13), 0, dp(5))
         })
         homeSubline = TextView(this).apply {
-            text = "PC · Hisense · Fire TV · PlayStation 5"
+            text = "Controllo diretto, rapido e senza passaggi inutili"
             textSize = 12f
             setTextColor(Color.rgb(173, 192, 208))
         }
@@ -388,13 +368,18 @@ class LeoMainActivity : AppCompatActivity() {
             setMargins(0, 0, dp(10), 0)
         })
 
-        val badgeView = TextView(this).apply {
-            text = badge
-            gravity = Gravity.CENTER
-            textSize = 11.5f
-            setTextColor(Color.rgb(6, 13, 18))
-            setTypeface(typeface, Typeface.BOLD)
+        val deviceIcon = when (badge.uppercase()) {
+            "PC" -> "pc"
+            "TV" -> "tv"
+            "FT" -> "fire"
+            "PS" -> "gamepad"
+            else -> "apps"
+        }
+        val badgeView = ImageView(this).apply {
+            setImageDrawable(LeoIconDrawable(deviceIcon, Color.rgb(7, 15, 21)))
+            setPadding(dp(11), dp(11), dp(11), dp(11))
             background = rounded(accent, dp(18).toFloat(), Color.TRANSPARENT)
+            contentDescription = title
         }
         card.addView(badgeView, LinearLayout.LayoutParams(dp(50), dp(50)))
 
