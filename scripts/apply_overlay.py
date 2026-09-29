@@ -72,8 +72,8 @@ tree.write(manifest_path, encoding="utf-8", xml_declaration=True)
 
 gradle_path = UP / "android" / "app" / "build.gradle"
 gradle = gradle_path.read_text(encoding="utf-8")
-gradle = gradle.replace("versionCode 12", "versionCode 150", 1)
-gradle = gradle.replace("versionName chiakiVersion", 'versionName "0.15.0"', 1)
+gradle = gradle.replace("versionCode 12", "versionCode 151", 1)
+gradle = gradle.replace("versionName chiakiVersion", 'versionName "0.15.1"', 1)
 deps = [
     'implementation "com.squareup.okhttp3:okhttp:4.12.0"',
     'implementation "dev.mobile:dadb:2.0.0"',
