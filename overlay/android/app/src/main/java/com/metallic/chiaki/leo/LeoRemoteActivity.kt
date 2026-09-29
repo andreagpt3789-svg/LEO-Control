@@ -266,7 +266,7 @@ class LeoRemoteActivity : AppCompatActivity() {
                 setTextColor(deviceAccent())
             }, LinearLayout.LayoutParams(0, dp(28), 1f))
             addView(TextView(this@LeoRemoteActivity).apply {
-                text = "60 FPS"
+                text = "SYNC"
                 textSize = 8f
                 letterSpacing = 0.08f
                 gravity = Gravity.CENTER
@@ -601,7 +601,10 @@ class LeoRemoteActivity : AppCompatActivity() {
         Thread {
             val result = when (command) {
                 "power" -> tv.sendKey("KEY_POWER")
-                "source" -> tv.sendKey("KEY_INPUT")
+                "source" -> {
+                    runOnUiThread { showVidaaSources() }
+                    return@Thread
+                }
                 "home" -> tv.sendKey("KEY_HOME")
                 "back" -> tv.sendKey("KEY_RETURNS")
                 "menu" -> tv.sendKey("KEY_MENU")
@@ -638,6 +641,54 @@ class LeoRemoteActivity : AppCompatActivity() {
                 }
             }
         }.start()
+    }
+
+    private fun showVidaaSources() {
+        val tv = vidaa ?: return
+        setStatus("● sorgenti…", MUTED.toInt())
+        tv.requestSources { sources ->
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+
+                val fallback = listOf(
+                    LeoVidaaClient.VidaaSource("0", "TV", "TV"),
+                    LeoVidaaClient.VidaaSource("3", "HDMI1", "HDMI 1"),
+                    LeoVidaaClient.VidaaSource("4", "HDMI2", "HDMI 2"),
+                    LeoVidaaClient.VidaaSource("5", "HDMI3", "HDMI 3"),
+                    LeoVidaaClient.VidaaSource("6", "HDMI4", "HDMI 4")
+                )
+                val list = if (sources.isNotEmpty()) sources else fallback
+                val labels = list.map { it.displayName.ifBlank { it.name } }.toTypedArray()
+
+                setStatus("● diretto", GREEN.toInt())
+                AlertDialog.Builder(this)
+                    .setTitle("Sorgenti")
+                    .setItems(labels) { _, which ->
+                        val src = list[which]
+                        setStatus("● cambio…", MUTED.toInt())
+                        Thread {
+                            val result = tv.setSource(src.id, src.name)
+                            runOnUiThread {
+                                if (result.isSuccess) {
+                                    setStatus("● diretto", GREEN.toInt())
+                                } else {
+                                    setStatus("● errore", RED.toInt())
+                                    Toast.makeText(
+                                        this,
+                                        result.exceptionOrNull()?.message ?: "Cambio sorgente non riuscito",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                        }.apply {
+                            name = "LEO-VIDAA-Source"
+                            isDaemon = true
+                        }.start()
+                    }
+                    .setNegativeButton("Chiudi", null)
+                    .show()
+            }
+        }
     }
 
     private fun sendFireCommand(command: String) {
@@ -1181,7 +1232,7 @@ class LeoRemoteActivity : AppCompatActivity() {
         private fun scheduleFrame() {
             if (frameScheduled) return
             frameScheduled = true
-            postDelayed({
+            postOnAnimation {
                 frameScheduled = false
 
                 val dx = pendingX.toInt().coerceIn(-360, 360)
@@ -1199,7 +1250,7 @@ class LeoRemoteActivity : AppCompatActivity() {
                 if (abs(pendingX) >= 1f || abs(pendingY) >= 1f || abs(pendingScroll) >= 1f) {
                     scheduleFrame()
                 }
-            }, 16L)
+            }
         }
 
         override fun onTouchEvent(e: MotionEvent): Boolean {
