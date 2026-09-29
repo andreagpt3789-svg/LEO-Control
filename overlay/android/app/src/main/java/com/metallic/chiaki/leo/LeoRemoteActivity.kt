@@ -718,13 +718,12 @@ class LeoRemoteActivity : AppCompatActivity() {
         if (vidaaPairDialogVisible || isFinishing) return
         vidaaPairDialogVisible = true
         AlertDialog.Builder(this)
-            .setTitle("Collega Hisense direttamente")
+            .setTitle("Collega Hisense")
             .setMessage(
-                "LEO si collega alla TV sulla rete locale. La prima volta la TV mostrerà un PIN. " +
-                    "Su alcuni modelli moderni serve che l'app ufficiale VIDAA Smart TV sia installata sul telefono: " +
-                    "LEO legge localmente il certificato già presente nell'app e lo salva nella propria area privata."
+                "LEO prova prima il collegamento VIDAA diretto senza PIN, lo stesso metodo che ha già funzionato. " +
+                    "Solo se la TV lo rifiuta passa automaticamente al pairing moderno con PIN."
             )
-            .setPositiveButton("Avvia pairing") { _, _ ->
+            .setPositiveButton("Collega") { _, _ ->
                 vidaaPairDialogVisible = false
                 startVidaaPairing()
             }
