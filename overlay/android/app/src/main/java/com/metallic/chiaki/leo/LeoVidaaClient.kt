@@ -23,6 +23,8 @@ import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
@@ -69,6 +71,7 @@ class LeoVidaaClient(private val context: Context) {
     @Volatile private var tokenExchangeStarted: Boolean = false
     private val pairingTrace = mutableListOf<String>()
     @Volatile private var pendingSourcesCallback: ((List<VidaaSource>) -> Unit)? = null
+    @Volatile private var tokenRefreshLatch: CountDownLatch? = null
 
     init {
         restoreSessionBackupIfNeeded()
@@ -127,11 +130,14 @@ class LeoVidaaClient(private val context: Context) {
     }
 
     private fun saveSession(clientId: String, username: String, access: String, refresh: String) {
+        val finalRefresh = refresh.ifBlank {
+            prefs.getString(KEY_REFRESH, "").orEmpty()
+        }
         prefs.edit()
             .putString(KEY_CLIENT_ID, clientId)
             .putString(KEY_USERNAME, username)
             .putString(KEY_ACCESS, access)
-            .putString(KEY_REFRESH, refresh)
+            .putString(KEY_REFRESH, finalRefresh)
             .apply()
         backupCurrentSessionIfValid()
     }
@@ -315,6 +321,7 @@ class LeoVidaaClient(private val context: Context) {
         }.start()
     }
 
+    @Synchronized
     private fun ensureConnected() {
         restoreSessionBackupIfNeeded()
         val existing = client
@@ -323,11 +330,56 @@ class LeoVidaaClient(private val context: Context) {
         val savedClientId = prefs.getString(KEY_CLIENT_ID, "").orEmpty()
         val savedUsername = prefs.getString(KEY_USERNAME, "").orEmpty()
         val access = prefs.getString(KEY_ACCESS, "").orEmpty()
+        val refresh = prefs.getString(KEY_REFRESH, "").orEmpty()
+
         if (savedClientId.isBlank() || savedUsername.isBlank() || access.isBlank()) {
             error("Hisense non ancora associata direttamente a LEO")
         }
 
-        connect(savedClientId, savedUsername, access).getOrThrow()
+        val accessAttempt = connect(savedClientId, savedUsername, access)
+        if (accessAttempt.isSuccess) return
+
+        // VIDAA access tokens expire. If the broker rejects the saved access
+        // token, use the persisted refresh token as the temporary MQTT
+        // password, request a fresh access token, save it, then reconnect.
+        if (refresh.isBlank()) {
+            accessAttempt.getOrThrow()
+        }
+
+        val refreshConnect = connect(savedClientId, savedUsername, refresh)
+        if (refreshConnect.isFailure) {
+            error(
+                "Sessione VIDAA scaduta e refresh non autorizzato. " +
+                    "Ripristina la sessione una volta dal PC."
+            )
+        }
+
+        val oldAccess = access
+        val latch = CountDownLatch(1)
+        tokenRefreshLatch = latch
+        try {
+            val topic =
+                "/remoteapp/tv/platform_service/" + currentClientId + "/data/gettoken"
+            val payload = JSONObject()
+                .put("refreshtoken", refresh)
+                .toString()
+            publish(topic, payload)
+
+            val received = latch.await(7, TimeUnit.SECONDS)
+            val newAccess = prefs.getString(KEY_ACCESS, "").orEmpty()
+
+            if (!received || newAccess.isBlank() || newAccess == oldAccess) {
+                error(
+                    "Refresh VIDAA non riuscito. " +
+                        "Ripristina la sessione una volta dal PC."
+                )
+            }
+
+            disconnect()
+            connect(savedClientId, savedUsername, newAccess).getOrThrow()
+        } finally {
+            tokenRefreshLatch = null
+        }
     }
 
     private fun connectForPairing(): Boolean {
@@ -485,6 +537,7 @@ class LeoVidaaClient(private val context: Context) {
                 pairingCompleted = true
                 pinSubmitted = false
                 saveSession(currentClientId, currentUsername, access, refresh)
+                tokenRefreshLatch?.countDown()
                 pendingPairCallback?.invoke(
                     PairingResult(true, "Hisense associata direttamente a LEO Control.")
                 )
