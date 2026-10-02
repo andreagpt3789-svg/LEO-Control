@@ -71,18 +71,18 @@ jobs:
         run: |
           mkdir -p out
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
-          "$APKSIGNER" sign             --ks "$HOME/.android/debug.keystore"             --ks-key-alias androiddebugkey             --ks-pass pass:android             --key-pass pass:android             --out out/LEO-Control-Android-v0.16.3-debug.apk             upstream/android/app/build/outputs/apk/debug/app-debug.apk
-          CERT_SHA256=$("$APKSIGNER" verify --print-certs out/LEO-Control-Android-v0.16.3-debug.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          "$APKSIGNER" sign             --ks "$HOME/.android/debug.keystore"             --ks-key-alias androiddebugkey             --ks-pass pass:android             --key-pass pass:android             --out out/LEO-Control-Android-v0.16.4-debug.apk             upstream/android/app/build/outputs/apk/debug/app-debug.apk
+          CERT_SHA256=$("$APKSIGNER" verify --print-certs out/LEO-Control-Android-v0.16.4-debug.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
           EXPECTED_CERT_SHA256="d034d3c13443f27ad4c689b0910a4a3b47ad8f3f099452b9364eb56d60beaff4"
           if [ "$CERT_SHA256" != "$EXPECTED_CERT_SHA256" ]; then
             echo "Unexpected LEO signing certificate: $CERT_SHA256"
             exit 1
           fi
-          "$APKSIGNER" verify --verbose --print-certs out/LEO-Control-Android-v0.16.3-debug.apk
+          "$APKSIGNER" verify --verbose --print-certs out/LEO-Control-Android-v0.16.4-debug.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LEO-Control-Android-v0.16.3
-          path: out/LEO-Control-Android-v0.16.3-debug.apk
+          name: LEO-Control-Android-v0.16.4
+          path: out/LEO-Control-Android-v0.16.4-debug.apk
           if-no-files-found: error
