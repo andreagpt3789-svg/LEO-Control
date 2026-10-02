@@ -1013,44 +1013,42 @@ class LeoRemoteActivity : AppCompatActivity() {
             "volume_up" -> 24
             "mute" -> 164
             else -> null
-        }
-        if (key == null) return
-        ensureFireConnected {
-            Thread {
-                val result = fire?.sendKey(key) ?: Result.failure(IllegalStateException("Fire TV non disponibile"))
+        } ?: return
+
+        fireCommandExecutor.execute {
+            val result = fire?.sendKey(key)
+                ?: Result.failure(IllegalStateException("Fire TV non disponibile"))
+
+            if (result.isFailure) {
                 runOnUiThread {
-                    if (result.isSuccess) {
-                        setStatus("● diretto", GREEN.toInt())
-                    } else {
-                        setStatus("● errore", RED.toInt())
-                        Toast.makeText(
-                            this,
-                            result.exceptionOrNull()?.message ?: "Comando Fire TV non riuscito",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    setStatus("● errore", RED.toInt())
+                    Toast.makeText(
+                        this,
+                        result.exceptionOrNull()?.message ?: "Comando Fire TV non riuscito",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
-            }.start()
+            }
         }
     }
 
     private fun sendFireText(value: String) {
-        ensureFireConnected {
-            Thread {
-                val result = fire?.sendText(value) ?: Result.failure(IllegalStateException("Fire TV non disponibile"))
+        fireCommandExecutor.execute {
+            val result = fire?.sendText(value)
+                ?: Result.failure(IllegalStateException("Fire TV non disponibile"))
+
+            if (result.isFailure) {
                 runOnUiThread {
-                    if (result.isSuccess) {
-                        setStatus("● diretto", GREEN.toInt())
-                    } else {
-                        setStatus("● errore", RED.toInt())
-                        Toast.makeText(
-                            this,
-                            result.exceptionOrNull()?.message ?: "Invio testo non riuscito",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    setStatus("● errore", RED.toInt())
+                    Toast.makeText(
+                        this,
+                        result.exceptionOrNull()?.message ?: "Invio testo non riuscito",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
-            }.start()
+            }
         }
     }
 
@@ -1059,7 +1057,7 @@ class LeoRemoteActivity : AppCompatActivity() {
         fireConnecting = true
         setStatus("CERCO FIRE TV", MUTED.toInt())
 
-        Thread {
+        fireCommandExecutor.execute {
             val result = runCatching {
                 val saved = fire?.savedIp().orEmpty().trim()
 
@@ -1089,10 +1087,7 @@ class LeoRemoteActivity : AppCompatActivity() {
                     ).show()
                 }
             }
-        }.apply {
-            name = "LEO-FireTV-AutoConnect"
-            isDaemon = true
-        }.start()
+        }
     }
 
     private fun ensureFireConnected(after: (() -> Unit)? = null) {
@@ -1106,7 +1101,7 @@ class LeoRemoteActivity : AppCompatActivity() {
 
         fireConnecting = true
         setStatus("CONNESSIONE", MUTED.toInt())
-        Thread {
+        fireCommandExecutor.execute {
             val result = runCatching {
                 fire?.connectSaved()?.getOrThrow()
                     ?: error("Fire TV non disponibile")
@@ -1131,10 +1126,7 @@ class LeoRemoteActivity : AppCompatActivity() {
                         .show()
                 }
             }
-        }.apply {
-            name = "LEO-FireTV-Connect"
-            isDaemon = true
-        }.start()
+        }
     }
 
     private fun showFireIpDialog(after: (() -> Unit)? = null) {
