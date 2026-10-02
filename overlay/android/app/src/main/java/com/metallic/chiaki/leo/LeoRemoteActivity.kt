@@ -32,6 +32,8 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONObject
+import java.util.ArrayDeque
+import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.math.hypot
 
@@ -62,6 +64,17 @@ class LeoRemoteActivity : AppCompatActivity() {
     private var fire: LeoFireClient? = null
     @Volatile private var fireConnecting = false
     private var vidaaPairDialogVisible = false
+
+    private val tvCommandExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "LEO-VIDAA-Commands").apply { isDaemon = true }
+    }
+    private val fireCommandExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "LEO-FireTV-Commands").apply { isDaemon = true }
+    }
+
+    private val pcSocketLock = Any()
+    private val pcPendingMessages = ArrayDeque<String>()
+    @Volatile private var pcSocketOpen = false
 
     private var surfaceMouseManager: SensorManager? = null
     private var surfaceMouseListener: SensorEventListener? = null
@@ -94,7 +107,19 @@ class LeoRemoteActivity : AppCompatActivity() {
             DEVICE_PC -> ensureSocket("/ws/pc")
             DEVICE_TV -> {
                 if (vidaa?.isPaired() == true) {
-                    setStatus("● diretto", GREEN.toInt())
+                    setStatus("● connessione…", MUTED.toInt())
+                    tvCommandExecutor.execute {
+                        val result = vidaa?.warmUp()
+                            ?: Result.failure(IllegalStateException("Hisense non disponibile"))
+                        runOnUiThread {
+                            if (isFinishing || isDestroyed) return@runOnUiThread
+                            if (result.isSuccess) {
+                                setStatus("● diretto", GREEN.toInt())
+                            } else {
+                                setStatus("● errore", RED.toInt())
+                            }
+                        }
+                    }
                 } else {
                     setStatus("● da associare", ORANGE.toInt())
                     showVidaaPairingIntro()
@@ -102,17 +127,25 @@ class LeoRemoteActivity : AppCompatActivity() {
             }
             DEVICE_FIRE -> {
                 setStatus("AVVIO", MUTED.toInt())
-                window.decorView.postDelayed({
+                window.decorView.post {
                     if (!isFinishing && !isDestroyed) ensureFireAutoConnected()
-                }, 350L)
+                }
             }
         }
     }
 
     override fun onDestroy() {
         stopSurfaceMouse()
-        socket?.close(1000, "close")
-        socket = null
+
+        synchronized(pcSocketLock) {
+            pcSocketOpen = false
+            pcPendingMessages.clear()
+            socket?.close(1000, "close")
+            socket = null
+        }
+
+        tvCommandExecutor.shutdownNow()
+        fireCommandExecutor.shutdownNow()
 
         // Never let network teardown block Android's main thread.
         val tv = vidaa
