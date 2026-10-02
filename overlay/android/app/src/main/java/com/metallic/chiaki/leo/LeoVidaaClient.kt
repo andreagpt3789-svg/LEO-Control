@@ -155,6 +155,10 @@ class LeoVidaaClient(private val context: Context) {
     fun hasOfficialVidaaCertificateSource(): Boolean =
         locateOfficialP12Bytes() != null || File(context.filesDir, "vidaa/client.p12").exists()
 
+    fun warmUp(): Result<Unit> = runCatching {
+        ensureConnected()
+    }
+
     fun sendKey(key: String): Result<Unit> = runCatching {
         ensureConnected()
         publish("/remoteapp/tv/remote_service/" + currentClientId + "/actions/sendkey", key)
