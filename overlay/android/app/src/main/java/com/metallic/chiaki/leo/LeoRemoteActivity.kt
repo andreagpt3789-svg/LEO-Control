@@ -1419,29 +1419,95 @@ class LeoRemoteActivity : AppCompatActivity() {
     }
 
     private fun ensureSocket(path: String) {
-        if (device != DEVICE_PC || socket != null) return
-        socket = hub.webSocket(path, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) {
-                runOnUiThread { setStatus("● agent", GREEN.toInt()) }
-            }
+        if (device != DEVICE_PC) return
 
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                runOnUiThread {
-                    setStatus("● offline", MUTED.toInt())
-                    if (code == 4401) showPairDialog()
+        synchronized(pcSocketLock) {
+            if (socket != null) return
+
+            socket = hub.webSocket(path, object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    val pending = synchronized(pcSocketLock) {
+                        pcSocketOpen = true
+                        val copy = pcPendingMessages.toList()
+                        pcPendingMessages.clear()
+                        copy
+                    }
+
+                    pending.forEach { payload ->
+                        webSocket.send(payload)
+                    }
+
+                    runOnUiThread {
+                        if (!isFinishing && !isDestroyed) {
+                            setStatus("● agent", GREEN.toInt())
+                        }
+                    }
                 }
-                socket = null
-            }
 
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                runOnUiThread { updateStatus(false, t.message ?: "Errore rete") }
-                socket = null
-            }
-        })
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    synchronized(pcSocketLock) {
+                        pcSocketOpen = false
+                        if (socket === webSocket) socket = null
+                    }
+
+                    runOnUiThread {
+                        if (isFinishing || isDestroyed) return@runOnUiThread
+                        setStatus("● offline", MUTED.toInt())
+                        if (code == 4401) showPairDialog()
+                    }
+                }
+
+                override fun onFailure(
+                    webSocket: WebSocket,
+                    t: Throwable,
+                    response: Response?
+                ) {
+                    synchronized(pcSocketLock) {
+                        pcSocketOpen = false
+                        if (socket === webSocket) socket = null
+                    }
+
+                    runOnUiThread {
+                        if (isFinishing || isDestroyed) return@runOnUiThread
+                        setStatus("● riconnessione…", MUTED.toInt())
+                        window.decorView.postDelayed({
+                            if (!isFinishing && !isDestroyed) {
+                                ensureSocket("/ws/pc")
+                            }
+                        }, 140L)
+                    }
+                }
+            })
+        }
     }
 
     private fun wsSend(json: JSONObject) {
-        socket?.send(json.toString())
+        val payload = json.toString()
+        val kind = json.optString("type")
+        var needConnect = false
+
+        synchronized(pcSocketLock) {
+            val current = socket
+            if (pcSocketOpen && current != null && current.send(payload)) {
+                return
+            }
+
+            // Movement/scroll packets become stale almost immediately.
+            // Do not replay them after a reconnect, but preserve discrete
+            // commands, clicks, keys and live keyboard text.
+            if (kind != "move" && kind != "scroll") {
+                while (pcPendingMessages.size >= 96) {
+                    pcPendingMessages.removeFirst()
+                }
+                pcPendingMessages.addLast(payload)
+            }
+
+            needConnect = current == null
+        }
+
+        if (needConnect) {
+            ensureSocket("/ws/pc")
+        }
     }
 
     private fun showPairDialog() {
