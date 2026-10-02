@@ -898,8 +898,13 @@ class LeoRemoteActivity : AppCompatActivity() {
             showVidaaPairingIntro()
             return
         }
-        setStatus("● invio…", MUTED.toInt())
-        Thread {
+
+        if (command == "source") {
+            showVidaaSources()
+            return
+        }
+
+        tvCommandExecutor.execute {
             val result = if (command.startsWith("digit_")) {
                 val digit = command.removePrefix("digit_")
                 if (digit.length == 1 && digit[0] in '0'..'9') {
@@ -909,10 +914,6 @@ class LeoRemoteActivity : AppCompatActivity() {
                 }
             } else when (command) {
                 "power" -> tv.sendKey("KEY_POWER")
-                "source" -> {
-                    runOnUiThread { showVidaaSources() }
-                    return@Thread
-                }
                 "home" -> tv.sendKey("KEY_HOME")
                 "back" -> tv.sendKey("KEY_RETURNS")
                 "menu" -> tv.sendKey("KEY_MENU")
@@ -930,16 +931,14 @@ class LeoRemoteActivity : AppCompatActivity() {
                 "play" -> tv.sendKey("KEY_PLAY")
                 "source_tv" -> tv.setSource("0")
                 "source_hdmi1" -> tv.setSource("3")
-                "app_netflix" -> tv.launchApp("netflix")
-                "app_youtube" -> tv.launchApp("youtube")
-                "app_prime" -> tv.launchApp("prime")
-                "app_disney" -> tv.launchApp("disney")
-                else -> Result.failure(IllegalArgumentException("Comando VIDAA non supportato"))
+                else -> Result.failure(
+                    IllegalArgumentException("Comando VIDAA non supportato")
+                )
             }
-            runOnUiThread {
-                if (result.isSuccess) {
-                    setStatus("● diretto", GREEN.toInt())
-                } else {
+
+            if (result.isFailure) {
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
                     setStatus("● errore", RED.toInt())
                     Toast.makeText(
                         this,
@@ -948,7 +947,7 @@ class LeoRemoteActivity : AppCompatActivity() {
                     ).show()
                 }
             }
-        }.start()
+        }
     }
 
     private fun showVidaaSources() {
@@ -974,9 +973,10 @@ class LeoRemoteActivity : AppCompatActivity() {
                     .setItems(labels) { _, which ->
                         val src = list[which]
                         setStatus("● cambio…", MUTED.toInt())
-                        Thread {
+                        tvCommandExecutor.execute {
                             val result = tv.setSource(src.id, src.name)
                             runOnUiThread {
+                                if (isFinishing || isDestroyed) return@runOnUiThread
                                 if (result.isSuccess) {
                                     setStatus("● diretto", GREEN.toInt())
                                 } else {
@@ -988,10 +988,7 @@ class LeoRemoteActivity : AppCompatActivity() {
                                     ).show()
                                 }
                             }
-                        }.apply {
-                            name = "LEO-VIDAA-Source"
-                            isDaemon = true
-                        }.start()
+                        }
                     }
                     .setNegativeButton("Chiudi", null)
                     .show()
